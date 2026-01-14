@@ -110,9 +110,25 @@ systemctl enable --now kubelet
 #### Bootstraping Master
 * Bootstraping master using kubeadm
 ```bash
-kubeadm init --pod-network-cidr 192.168.0.0/16 --kubernetes-version 1.29.1 --node-name k8s-master --apiserver-cert-extra-sans 103.141.177.132 --apiserver-cert-extra-sans k8s.kbuor.tech --apiserver-cert-extra-sans k8s-master
+kubeadm init --pod-network-cidr 192.168.0.0/16
 ```
-Lưu ý: khi init lần đầu nên dùng với cờ --dry-run để test vì init là lỗi một chiều không thể quay lại được phải xoá hết làm lại từ đầu.
+Lưu ý: khi init lần đầu nên dùng với cờ --dry-run để test vì init là lỗi một chiều không thể quay lại được phải xoá hết làm lại từ đầu. Ở đây nếu không rành nên để đường mạng mặc định như trên để cấu hình hợp với Calico bên dưới.
+
+```bash
+sudo kubeadm init \
+  --control-plane-endpoint "<ENDPOINT:PORT>" \
+  --pod-network-cidr "<POD_CIDR>" \
+  --service-cidr "<SERVICE_CIDR>" \
+  --upload-certs \
+  --apiserver-cert-extra-sans "<SAN1>,<SAN2>,..."
+```
+
+Ý nghĩa các tham số trong ảnh:
+- --control-plane-endpoint: Thiết lập một địa chỉ duy nhất (thường là IP hoặc DNS của bộ cân bằng tải) cho tất cả các máy Master. Điều này rất quan trọng nếu bạn muốn làm hệ thống có tính sẵn sàng cao (High Availability).
+- --pod-network-cidr: Định nghĩa dải địa chỉ IP cho các Pod. Ví dụ: nếu bạn dùng Calico, thường sẽ đặt là 192.168.0.0/16.
+- --service-cidr: Định nghĩa dải địa chỉ IP cho các Service (các IP ảo để truy cập ứng dụng).
+- --upload-certs: Tự động tải các chứng chỉ bảo mật lên cụm để nếu bạn có thêm máy Master thứ 2 hoặc thứ 3, chúng có thể tự đồng bộ chứng chỉ về.
+- --apiserver-cert-extra-sans: Thêm các tên miền hoặc IP bổ sung vào chứng chỉ SSL của API Server (giúp bạn có thể điều khiển cluster từ xa một cách an toàn qua các IP khác).
 
 * Configure token
 ```bash
