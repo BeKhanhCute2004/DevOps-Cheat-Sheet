@@ -99,8 +99,33 @@ apt install -y kubelet=1.29.1-1.1 kubeadm=1.29.1-1.1 kubectl=1.29.1-1.1
 ```bash
 apt-mark hold kubelet kubeadm kubectl
 ```
+apt-mark hold (Giữ phiên bản): Đây là lệnh bạn thấy trong hình. Khi bạn "hold" một gói tin, hệ thống sẽ khóa phiên bản hiện tại của gói đó lại. Khi bạn chạy apt upgrade, các gói này sẽ không bao giờ bị tự động cập nhật lên bản mới hơn.
+Tại sao Kubernetes cần cái này? Trong cụm K8s, các thành phần như kubelet, kubeadm cần sự đồng nhất về phiên bản giữa các node. Nếu một node tự ý cập nhật lên bản mới hơn các node còn lại, cụm máy chủ có thể bị lỗi hoặc mất ổn định.
 
 * Enable kubelet service
 ```bash
 systemctl enable --now kubelet
 ```
+
+### Setup cho Master Node
+#### Bootstraping Master
+* Bootstraping master using kubeadm
+```bash
+kubeadm init --pod-network-cidr 192.168.0.0/16 --kubernetes-version 1.29.1 --node-name k8s-master --apiserver-cert-extra-sans 103.141.177.132 --apiserver-cert-extra-sans k8s.kbuor.tech --apiserver-cert-extra-sans k8s-master
+```
+Lưu ý: khi init lần đầu nên dùng với cờ --dry-run để test vì init là lỗi một chiều không thể quay lại được phải xoá hết làm lại từ đầu.
+
+* Configure token
+```bash
+mkdir -p $HOME/.kube
+cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```
+
+* Apply overlay networking
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/custom-resources.yaml
+```
+
+
