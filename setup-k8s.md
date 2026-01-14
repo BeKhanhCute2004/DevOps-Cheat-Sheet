@@ -72,48 +72,50 @@ Sử dụng vi để chỉnh sửa file /etc/containerd/config.toml, thay đổi
 
 ### Install Dependency
 Dependency need to install: docker, kubeadm, kubelet
-* Add GPG key for Kubernetes repository
+#### Add GPG key for Kubernetes repository
 ```bash
 apt-get install ca-certificates curl gnupg lsb-release apt-transport-https gpg
 sudo mkdir -m 0755 -p /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 ```
 
-* Add Kubernetes repository
+#### Add Kubernetes repository
 ```bash
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
 ```
 
-* Update repository
+#### Update repository
 ```bash
 apt update -y
 reboot
 ```
 
-* Install dependency components
+#### Install dependency components
 ```bash
 apt install -y kubelet=1.29.1-1.1 kubeadm=1.29.1-1.1 kubectl=1.29.1-1.1
 ```
 
-* Hold Kubernetes components version
+#### Hold Kubernetes components version
 ```bash
 apt-mark hold kubelet kubeadm kubectl
 ```
 apt-mark hold (Giữ phiên bản): Đây là lệnh bạn thấy trong hình. Khi bạn "hold" một gói tin, hệ thống sẽ khóa phiên bản hiện tại của gói đó lại. Khi bạn chạy apt upgrade, các gói này sẽ không bao giờ bị tự động cập nhật lên bản mới hơn.
 Tại sao Kubernetes cần cái này? Trong cụm K8s, các thành phần như kubelet, kubeadm cần sự đồng nhất về phiên bản giữa các node. Nếu một node tự ý cập nhật lên bản mới hơn các node còn lại, cụm máy chủ có thể bị lỗi hoặc mất ổn định.
 
-* Enable kubelet service
+#### Enable kubelet service
 ```bash
 systemctl enable --now kubelet
 ```
 
-#### Bootstraping Master
-* Bootstraping master using kubeadm
+### Bootstraping
+#### Bootstraping master using kubeadm
+* Bootstrap cơ bản cho test
 ```bash
 kubeadm init --pod-network-cidr 192.168.0.0/16
 ```
 Lưu ý: khi init lần đầu nên dùng với cờ --dry-run để test vì init là lỗi một chiều không thể quay lại được phải xoá hết làm lại từ đầu. Ở đây nếu không rành nên để đường mạng mặc định như trên để cấu hình hợp với Calico bên dưới.
 
+* Bootstrap đầy đủ 
 ```bash
 sudo kubeadm init \
   --control-plane-endpoint "<ENDPOINT:PORT>" \
@@ -130,20 +132,13 @@ sudo kubeadm init \
 - --upload-certs: Tự động tải các chứng chỉ bảo mật lên cụm để nếu bạn có thêm máy Master thứ 2 hoặc thứ 3, chúng có thể tự đồng bộ chứng chỉ về.
 - --apiserver-cert-extra-sans: Thêm các tên miền hoặc IP bổ sung vào chứng chỉ SSL của API Server (giúp bạn có thể điều khiển cluster từ xa một cách an toàn qua các IP khác).
 
-* Configure token
-```bash
-mkdir -p $HOME/.kube
-cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
-```
-
-* Apply overlay networking
+#### Apply overlay networking
 ```bash
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/tigera-operator.yaml
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/custom-resources.yaml
 ```
 
-* Configure Token
+#### Configure Token
 ```bash
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
