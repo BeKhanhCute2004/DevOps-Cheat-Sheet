@@ -153,3 +153,13 @@ Lựa chọn 2: Cài đặt Calico (Phổ biến, bảo mật cao)
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/custom-resources.yaml
 ```
+
+* Join Cluster
+```bash
+kubeadm join 172.26.9.10:6443 --token 551p5f.95n94jwhkh7zxi0y \
+    --discovery-token-ca-cert-hash sha256:c7da60f995cfbbd72f98b80378dd8bc048bdc8849148a6d1d90636dda716fd31
+```
+nếu quên lưu hoặc token hết hạn có thể dùng lệnh này
+```bash
+kubeadm token create --print-join-command
+```
