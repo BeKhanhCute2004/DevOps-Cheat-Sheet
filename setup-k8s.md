@@ -135,3 +135,21 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 Mục đích chính của các câu lệnh này là cấp quyền cho người dùng bình thường (không phải root) có thể sử dụng lệnh kubectl để quản lý cụm Cluster.
+Sau khi thiết lập xong, Master Node sẽ trong trạng thái not ready do chưa có Pod Network nào
+
+```bash
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+https://kubernetes.io/docs/concepts/cluster-administration/addons/
+```
+
+Lựa chọn 1: Cài đặt Flannel (Đơn giản nhất)
+```bash
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+
+Lựa chọn 2: Cài đặt Calico (Phổ biến, bảo mật cao)
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/custom-resources.yaml
+```
