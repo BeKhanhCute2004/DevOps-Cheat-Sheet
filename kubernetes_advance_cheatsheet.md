@@ -54,7 +54,7 @@
 # - kube-proxy: Network proxy that runs on each node
 # - Container Runtime: Software responsible for running containers
 ```
-![Kubernetes Architecture](./kubectl_advance_cheatsheet_1.jpg
+![Kubernetes Architecture](./kubectl_advance_cheatsheet_1.jpg)
 
 ### Cluster Information Commands
 ```bash
