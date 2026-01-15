@@ -118,24 +118,25 @@ Lưu ý: khi init lần đầu nên dùng với cờ --dry-run để test vì in
 * Bootstrap đầy đủ 
 ```bash
 sudo kubeadm init \
-  --control-plane-endpoint "<ENDPOINT:PORT>" \
+  --control-plane-endpoint "<IP_OR_DOMAIN:PORT>" \
   --pod-network-cidr "<POD_CIDR>" \
   --service-cidr "<SERVICE_CIDR>" \
   --upload-certs \
-  --apiserver-cert-extra-sans "<SAN1>,<SAN2>,..."
+  --apiserver-cert-extra-sans "<IP_OR_DOMAIN>,<IP_OR_DOMAIN>,..."
 ```
 
 Ý nghĩa các tham số trên:
-- --control-plane-endpoint: Thiết lập một địa chỉ duy nhất (thường là IP hoặc DNS của bộ cân bằng tải) cho tất cả các máy Master. Điều này rất quan trọng nếu bạn muốn làm hệ thống có tính sẵn sàng cao (High Availability).
 - --pod-network-cidr: Định nghĩa dải địa chỉ IP cho các Pod. Ví dụ: nếu bạn dùng Calico, thường sẽ đặt là 192.168.0.0/16.
 - --service-cidr: Định nghĩa dải địa chỉ IP cho các Service (các IP ảo để truy cập ứng dụng).
 - --upload-certs: Tự động tải các chứng chỉ bảo mật lên cụm để nếu bạn có thêm máy Master thứ 2 hoặc thứ 3, chúng có thể tự đồng bộ chứng chỉ về.
 - --apiserver-cert-extra-sans: Thêm các tên miền hoặc IP bổ sung vào chứng chỉ SSL của API Server (giúp bạn có thể điều khiển cluster từ xa một cách an toàn qua các IP khác). Lời khuyên: nên add vào IP + hostname của tất cả Master Node, IP Load Balance, Domain name public, IP mặt ngoài (public).
+- --control-plane-endpoint : xác định ip của load balancer làm điểm kết nối duy nhất cho toàn bộ cluster. tất cả các máy worker sẽ nhìn vào địa chỉ này để liên lạc với hệ thống điều khiển thay vì gọi trực tiếp vào từng ip của master. Nếu muốn chỉ load balance mặt ngoài thì không cần cờ này, chỉ cần đổi IP trong file config và thêm --apiserver-cert-extra-sans.
 
 Các tham số cấu hình thêm:
 - --node-name <STRING>: đặt tên cho host (mặc định lấy host name nếu không set)
---apiserver-advertise-address <ENDPOINT:PORT>: xác định ip thật của máy master hiện tại để api server mở cổng (bind) và lắng nghe traffic đổ vào. nó giúp định danh chính xác dịch vụ đang chạy trên card mạng nào của máy đó.
-- --control-plane-endpoint <ENDPOINT:PORT>: xác định ip của load balancer làm điểm kết nối duy nhất cho toàn bộ cluster. tất cả các máy worker sẽ nhìn vào địa chỉ này để liên lạc với hệ thống điều khiển thay vì gọi trực tiếp vào từng ip của master.
+- --apiserver-advertise-address <ENDPOINT>: xác định ip thật của máy master hiện tại để api server mở cổng (bind) và lắng nghe traffic đổ vào. nó giúp định danh chính xác dịch vụ đang chạy trên card mạng nào của máy đó.
+
+
 #### Configure Token
 ```bash
 mkdir -p $HOME/.kube
