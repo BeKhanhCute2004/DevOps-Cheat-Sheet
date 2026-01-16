@@ -174,3 +174,17 @@ kubeadm join 172.26.9.10:6443 --token 551p5f.95n94jwhkh7zxi0y \
 ```bash
 kubeadm token create --print-join-command
 ```
+
+#### Master Node join Cluster
+* Join Cluster
+```bash
+kubeadm join kubernetes.kbuor.tech:6443 --token mn5dts.0tjj19w4z8bduz8k \
+  --discovery-token-ca-cert-hash sha256:daec4eb2cb544a59ed57c4e9a7675b56827b69210024fb4d5d6e850a5bc88218 \
+  --control-plane --certificate-key ae7198e6201490fdbd32f68db1d045dc80ee5d684b0ee04b03ccfb8d27a7ef98
+```
+* nếu quên lưu hoặc token hết hạn có thể dùng lệnh này
+```bash
+sudo kubeadm init phase upload-certs --upload-certs
+
+kubeadm token create --print-join-command --certificate-key <mã-key-vừa-lấy-ở-bước-1>
+```
