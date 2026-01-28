@@ -391,4 +391,26 @@ spec:
 ```
 ```bash
 kubectl apply -f app.yaml
-
+```
+#### Create Ingress
+```bash
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: demo.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-service
+            port:
+              number: 80
+```
