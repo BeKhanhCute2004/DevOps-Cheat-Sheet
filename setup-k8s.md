@@ -297,3 +297,47 @@ systemctl restart kubelet
 kubectl uncordon <tên-worker-node>
 ```
 ---
+
+## Installation Metal LB + Nginx
+### Install Metal LB
+#### Install template Metal LB by Manifest
+This will deploy MetalLB to your cluster, under the metallb-system namespace. The components in the manifest are:
+* The metallb-system/controller deployment. This is the cluster-wide controller that handles IP address assignments.
+* The metallb-system/speaker daemonset. This is the component that speaks the protocol(s) of your choice to make the services reachable.
+* Service accounts for the controller and speaker, along with the RBAC permissions that the components need to function.
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.15.3/config/manifests/metallb-native.yaml
+```
+
+#### Configure Metal LB (metallb-config.yaml)
+```bash
+kubectl create namespace metallb-system
+```
+```bash
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: metallb-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.20.30.200-10.20.30.210  # dải IP được chọn
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2-advertisement
+  namespace: metallb-system
+spec: {}
+```
+```bash
+kubectl apply -f metallb-config.yaml
+```
+
+#### Setup NGINX Ingress by Helm 
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install [RELEASE_NAME] ingress-nginx/ingress-nginx
+```
