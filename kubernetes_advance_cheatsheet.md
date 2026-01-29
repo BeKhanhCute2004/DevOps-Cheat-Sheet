@@ -885,6 +885,9 @@ kubectl create configmap app-config --from-file=./config/
 # Create ConfigMap from multiple files
 kubectl create configmap app-config --from-file=key1=value1.txt --from-file=key2=value2.txt
 
+# Rewrite ConfigMap
+kubectl create configmap <tên-configmap> --from-file=<đường-dẫn-file> --dry-run=client -o yaml | kubectl apply -f -
+
 # Create ConfigMap from environment file
 kubectl create configmap app-config --from-env-file=.env
 
