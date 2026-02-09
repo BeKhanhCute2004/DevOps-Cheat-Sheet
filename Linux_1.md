@@ -2,7 +2,7 @@
 | Command | Description | How to Read/Use |
 |-------|-------|-------|
 | lscpu | See CPU information |  |
-| lsblk | See information about block devices | **RM (Removable)**: nếu là 1 thì đây là thiết bị có thể tháo rời (như USB), 0 là ổ cứng cố định.<br>**RO (Read-Only)**: nếu là 1, thiết bị chỉ có thể đọc (như CD-ROM). |
+| lsblk | See information about block devices | **RM (Removable)**: nếu là 1 thì đây là thiết bị có thể tháo rời (như USB), 0 là ổ cứng cố định.<br>**RO (Read-Only)**: nếu là 1, thiết bị chỉ có thể đọc (như CD-ROM).<br>**sdX (sda, sdb...)**: ổ cứng chuẩn SATA hoặc SSD đời cũ.<br>**nvmeXnY (nvme0n1...)**: ổ cứng SSD chuẩn NVMe tốc độ cao.<br>**sr0**: thường là ổ đĩa quang (CD/DVD).<br>**vda, vdb**: ổ đĩa ảo trong môi trường máy ảo (KVM/QEMU). |
 | lspci -tv | Show PCI devices (graphics card, network card, etc.) in a tree-like diagram | Dữ liệu 2 |
 | lsusb -tv | Display USB devices in a tree-like diagram | Dữ liệu 2 |
 | lshw | List hardware configuration information | Dữ liệu 2 |
