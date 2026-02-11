@@ -26,8 +26,8 @@
 <br><br>**Tìm kiếm Mục lục (Partition Table)**:
 * BIOS: Tìm bảng MBR (512 byte đầu ổ cứng).
 * UEFI: Tìm phân vùng EFI (ESP) định dạng FAT32.
-**Chuyển giao**: BIOS/UEFI nạp đoạn mã mồi của Bootloader vào RAM và ra lệnh cho CPU thực thi.
-  
+**Chuyển giao**: BIOS/UEFI nạp đoạn mã mồi của Bootloader vào RAM và ra lệnh cho CPU thực thi.  
+
 ## Giai đoạn 2: Trình khởi động (Bootloader - GRUB)
 Lúc này mã lệnh của GRUB đã nằm trên RAM:
 <br><br>**GRUB Stage 1**: Đoạn mã cực nhỏ từ MBR/EFI sẽ tìm và nạp phần còn lại của GRUB từ thư mục /boot/grub trên ổ cứng.
