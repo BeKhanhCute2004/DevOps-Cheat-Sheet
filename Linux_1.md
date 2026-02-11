@@ -2,7 +2,7 @@
 
 [Hardware Information Commands](#hardware-information-commands)  
 [Linux Boot Process](#linux-boot-process)
-[Sysvinit, Upstart và Systemd](#sysvinit,-upstart-and-systemd)
+[Sysvinit, Upstart và Systemd](#sysvinit-upstart-and-systemd)
 
 # Hardware Information Commands
 
@@ -87,7 +87,7 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 
 **Login Prompt**: Hiện dòng chữ yêu cầu Username/Password.
 
-# Sysvinit, Upstart and Systemd
+# Sysvinit Upstart and Systemd
 
 | Tiêu chí | SysVinit | Upstart | Systemd |
 |----------|----------|---------|---------|
