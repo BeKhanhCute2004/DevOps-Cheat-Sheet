@@ -23,7 +23,7 @@
 <br><br>**Tìm kiếm Mục lục (Partition Table)**:
 * BIOS: Tìm bảng MBR (512 byte đầu ổ cứng).
 * UEFI: Tìm phân vùng EFI (ESP) định dạng FAT32.
-<br><br>**Chuyển giao**: BIOS/UEFI nạp đoạn mã mồi của Bootloader vào RAM và ra lệnh cho CPU thực thi.
+**Chuyển giao**: BIOS/UEFI nạp đoạn mã mồi của Bootloader vào RAM và ra lệnh cho CPU thực thi.
   
 ## Giai đoạn 2: Trình khởi động (Bootloader - GRUB)
 Lúc này mã lệnh của GRUB đã nằm trên RAM:
@@ -32,7 +32,7 @@ Lúc này mã lệnh của GRUB đã nằm trên RAM:
 <br><br>**Lựa chọn**:
 * Nếu chọn Windows: GRUB chuyển giao (Chainload) cho bootmgr.efi.
 * Nếu chọn Linux: GRUB nạp file Kernel và file initrd vào RAM.
-<br><br>**Kết thúc**: GRUB bàn giao toàn bộ quyền điều khiển RAM cho Kernel.
+**Kết thúc**: GRUB bàn giao toàn bộ quyền điều khiển RAM cho Kernel.
 
 ## Giai đoạn 3: Nhân hệ điều hành & Đội tiền trạm (Kernel & initrd)
 Đây là giai đoạn "nhảy" từ RAM vào ổ cứng thật:
