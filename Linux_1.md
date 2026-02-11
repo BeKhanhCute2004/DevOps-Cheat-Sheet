@@ -1,7 +1,11 @@
 # Mục lục
 
 [Hardware Information Commands](#hardware-information-commands)  
+
+
 [Linux Boot Process](#linux-boot-process)
+
+
 [Sysvinit, Upstart và Systemd](#sysvinit-upstart-and-systemd)
 
 # Hardware Information Commands
