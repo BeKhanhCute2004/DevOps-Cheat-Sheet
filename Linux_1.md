@@ -118,3 +118,73 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 | **User session management** | Không | Hỗ trợ hạn chế | `systemd --user` - quản lý session của từng user |
 | **Network management** | Dùng scripts riêng | Dùng NetworkManager riêng | `systemd-networkd` tích hợp |
 | **Ví dụ script/unit** | `#!/bin/bash`<br>`case "$1" in`<br>`  start)`<br>`    /usr/bin/daemon &`<br>`    ;;`<br>`esac` | `description "My Service"`<br>`start on runlevel [2345]`<br>`stop on runlevel [!2345]`<br>`respawn`<br>`exec /usr/bin/daemon` | `[Unit]`<br>`Description=My Service`<br>`After=network.target`<br>`[Service]`<br>`ExecStart=/usr/bin/daemon`<br>`Restart=on-failure`<br>`[Install]`<br>`WantedBy=multi-user.target` |
+
+# Systemd
+
+## Quản lý Service
+
+| Lệnh | Mô tả |
+|------|-------|
+| `systemctl status <service>` | Xem trạng thái service |
+| `systemctl start <service>` | Khởi động service |
+| `systemctl stop <service>` | Dừng service |
+| `systemctl restart <service>` | Khởi động lại service |
+| `systemctl reload <service>` | Reload cấu hình (không restart) |
+| `systemctl enable <service>` | Tự động chạy khi boot |
+| `systemctl disable <service>` | Tắt tự động chạy |
+
+## Xem thông tin
+
+| Lệnh | Mô tả |
+|------|-------|
+| `systemctl list-units --type=service` | Liệt kê tất cả services |
+| `systemctl list-units --type=service --state=running` | Chỉ xem services đang chạy |
+| `systemctl --failed` | Xem services bị lỗi |
+| `systemctl is-enabled <service>` | Kiểm tra có auto-start không |
+| `systemctl is-active <service>` | Kiểm tra có đang chạy không |
+
+## Xem Log (journalctl)
+
+| Lệnh | Mô tả |
+|------|-------|
+| `journalctl -u <service>` | Xem log của service |
+| `journalctl -u <service> -f` | Theo dõi log real-time |
+| `journalctl -u <service> -n 100` | Xem 100 dòng gần nhất |
+| `journalctl -u <service> --since today` | Log hôm nay |
+| `journalctl -u <service> --since "1 hour ago"` | Log 1 giờ trước |
+| `journalctl -p err` | Chỉ xem log lỗi |
+| `journalctl -b` | Log từ lần boot hiện tại |
+
+## Quản lý Unit Files
+
+| Lệnh | Mô tả |
+|------|-------|
+| `systemctl cat <service>` | Xem nội dung unit file |
+| `systemctl edit <service>` | Chỉnh sửa service (tạo override) |
+| `systemctl daemon-reload` | **Reload sau khi sửa file** |
+| `systemctl reset-failed` | Reset trạng thái failed |
+
+## Phân tích Performance
+
+| Lệnh | Mô tả |
+|------|-------|
+| `systemd-analyze` | Xem thời gian boot |
+| `systemd-analyze blame` | Service nào boot lâu nhất |
+| `systemd-cgtop` | Xem CPU/RAM của services real-time |
+
+## Quản lý Hệ thống
+
+| Lệnh | Mô tả |
+|------|-------|
+| `systemctl reboot` | Khởi động lại |
+| `systemctl poweroff` | Tắt máy |
+| `systemctl rescue` | Vào rescue mode |
+| `systemctl get-default` | Xem target mặc định |
+| `systemctl set-default multi-user.target` | Đặt chế độ text (no GUI) |
+| `systemctl set-default graphical.target` | Đặt chế độ GUI |
+
+## Lưu ý quan trọng
+
+⚠️ **Sau khi sửa file .service**: PHẢI chạy `systemctl daemon-reload`  
+⚠️ **Xem log real-time**: Thêm `-f` vào journalctl  
+⚠️ **Service file location**: `/etc/systemd/system/` (custom, ưu tiên cao nhất) hoặc `/run/systemd/system/` (ưu tiên trung bình, bay hơi khi reboot) `/lib/systemd/system/` (system default, ưu tiên thấp nhất)
