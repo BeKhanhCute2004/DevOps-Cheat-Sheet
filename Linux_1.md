@@ -108,20 +108,12 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 | **Quản lý timer** | Dùng cron riêng biệt | Dùng cron riêng biệt | Tích hợp timer units - thay thế cron<br>`.timer` files |
 | **Quản lý mount point** | Dùng `/etc/fstab` + script | Dùng `/etc/fstab` + events | Tích hợp `.mount` units + fstab |
 | **Quản lý tài nguyên** | Không hỗ trợ | Không hỗ trợ | Tích hợp cgroups - giới hạn CPU, RAM, I/O |
-| **Hỗ trợ container** | Không | Không | Có - `systemd-nspawn` |
 | **Tương thích ngược** | N/A (đây là hệ thống gốc) | Tương thích với SysVinit scripts | Tương thích với cả SysVinit và Upstart<br>Chạy được legacy scripts |
 | **Độ phức tạp** | Đơn giản - dễ học | Trung bình | Phức tạp - nhiều tính năng, khó học ban đầu |
-| **Kích thước** | Nhỏ gọn (~100KB) | Trung bình (~500KB) | Lớn (~1-2MB core + các module) |
 | **Khả năng mở rộng** | Khó - cần viết shell script phức tạp | Khá tốt - dựa trên events | Rất tốt - nhiều loại units, plugins |
 | **Debugging** | Khó - phải đọc log và script | Trung bình - `initctl log-priority` | Dễ - `journalctl`, `systemd-analyze` |
 | **Phân tích thời gian boot** | Không tích hợp | Không tích hợp | `systemd-analyze blame`<br>`systemd-analyze critical-chain` |
 | **User session management** | Không | Hỗ trợ hạn chế | `systemd --user` - quản lý session của từng user |
 | **Network management** | Dùng scripts riêng | Dùng NetworkManager riêng | `systemd-networkd` tích hợp |
-| **Hostname management** | File `/etc/hostname` + scripts | File `/etc/hostname` | `hostnamectl` |
-| **Time/Date management** | `date`, `hwclock` commands | `date`, `hwclock` commands | `timedatectl` |
-| **Locale management** | File `/etc/locale.conf` | File `/etc/locale.conf` | `localectl` |
 | **Ví dụ script/unit** | `#!/bin/bash`<br>`case "$1" in`<br>`  start)`<br>`    /usr/bin/daemon &`<br>`    ;;`<br>`esac` | `description "My Service"`<br>`start on runlevel [2345]`<br>`stop on runlevel [!2345]`<br>`respawn`<br>`exec /usr/bin/daemon` | `[Unit]`<br>`Description=My Service`<br>`After=network.target`<br>`[Service]`<br>`ExecStart=/usr/bin/daemon`<br>`Restart=on-failure`<br>`[Install]`<br>`WantedBy=multi-user.target` |
-| **Distro sử dụng (hiện tại)** | Hầu như không còn<br>Slackware (vẫn dùng) | Ubuntu <15.04 (đã chuyển sang Systemd)<br>Chrome OS (vẫn dùng) | Hầu hết distro hiện đại:<br>RHEL/CentOS 7+<br>Debian 8+<br>Ubuntu 15.04+<br>Fedora 15+<br>Arch Linux<br>openSUSE |
-| **Ưu điểm chính** | • Đơn giản, dễ hiểu<br>• Ổn định, đã test qua thời gian<br>• Ít phụ thuộc<br>• Dễ debug với shell script | • Nhanh hơn SysVinit<br>• Event-driven linh hoạt<br>• Tương thích ngược tốt<br>• Khởi động lại service tự động | • Rất nhanh (khởi động song song)<br>• Quản lý toàn diện hệ thống<br>• Logging mạnh mẽ<br>• Quản lý phụ thuộc tự động<br>• Nhiều tính năng tích hợp |
-| **Nhược điểm chính** | • Quá chậm<br>• Không tự động hóa<br>• Khó quản lý phụ thuộc<br>• Thiếu tính năng hiện đại | • Ít được phát triển<br>• Cộng đồng nhỏ<br>• Tài liệu hạn chế<br>• Bị thay thế bởi Systemd | • Phức tạp, khó học<br>• "Làm quá nhiều thứ" (vi phạm Unix philosophy)<br>• Binary log khó đọc trực tiếp<br>• Gây tranh cãi trong cộng đồng |
 | **Trạng thái hiện tại** | Legacy - không còn phát triển | Deprecated - Canonical đã bỏ | Tiêu chuẩn hiện tại - đang phát triển mạnh |
