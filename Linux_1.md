@@ -80,6 +80,50 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 
 **Bật Mạng**: Kích hoạt các giao tiếp mạng (IP, Routing).
 
+# Sysvinit, Upstart và Systemd
+
+| Tiêu chí | SysVinit | Upstart | Systemd |
+|----------|----------|---------|---------|
+| **Năm ra đời** | 1983 | 2006 | 2010 |
+| **Phát triển bởi** | Miquel van Smoorenburg | Canonical (Ubuntu) | Lennart Poettering & Kay Sievers (Red Hat) |
+| **Tiến trình đầu tiên (PID 1)** | `/sbin/init` | `/sbin/init` (Upstart) | `/lib/systemd/systemd` |
+| **Triết lý thiết kế** | Đơn giản, tuần tự, dựa trên script | Hướng sự kiện (event-driven) | Hướng sự kiện + song song + quản lý toàn diện |
+| **Cơ chế khởi động** | Tuần tự (sequential) - chạy từng script một theo thứ tự | Bất đồng bộ (asynchronous) - phản ứng theo sự kiện | Song song (parallel) - khởi động nhiều service cùng lúc |
+| **Tốc độ khởi động** | Chậm nhất (30-60 giây) | Trung bình (20-40 giây) | Nhanh nhất (5-20 giây) |
+| **File cấu hình chính** | `/etc/inittab` | `/etc/init/*.conf` | `/etc/systemd/system/*.service`<br>`/lib/systemd/system/*.service` |
+| **Định dạng cấu hình** | Shell script (.sh) | Cú pháp riêng (Upstart job) | Unit file (INI-like format) |
+| **Quản lý dịch vụ** | `/etc/init.d/[service] start/stop/restart` | `start/stop/restart [service]`<br>`initctl` | `systemctl start/stop/restart [service]` |
+| **Runlevel** | 0-6 (7 cấp độ rõ ràng)<br>0: Halt<br>1: Single user<br>2-5: Multi-user<br>6: Reboot | Hỗ trợ runlevel tương thích với SysVinit<br>Dùng "jobs" và "events" thay vì runlevel thuần túy | Target (thay thế runlevel)<br>`poweroff.target` (runlevel 0)<br>`rescue.target` (runlevel 1)<br>`multi-user.target` (runlevel 3)<br>`graphical.target` (runlevel 5)<br>`reboot.target` (runlevel 6) |
+| **Kiểm tra trạng thái service** | `/etc/init.d/[service] status`<br>`ps aux \| grep [service]` | `status [service]`<br>`initctl status [service]` | `systemctl status [service]` |
+| **Quản lý phụ thuộc** | Thủ công qua thứ tự S[số] và K[số] trong script | Tự động dựa trên khai báo events<br>`start on`, `stop on` | Tự động + mạnh mẽ<br>`Requires=`, `After=`, `Before=`, `Wants=` |
+| **Xử lý song song** | Không hỗ trợ - chạy tuần tự | Có hỗ trợ cơ bản | Hỗ trợ mạnh mẽ - tối ưu hóa tự động |
+| **Theo dõi tiến trình** | Không tích hợp - phải dùng PID file | Tích hợp sẵn - theo dõi qua PID | Tích hợp mạnh mẽ - dùng cgroups để theo dõi chính xác |
+| **Logging** | Dùng `/var/log/messages` hoặc syslog | Dùng syslog truyền thống | `journald` - binary log tích hợp<br>Xem bằng `journalctl` |
+| **Khởi động lại service khi crash** | Không tự động - cần script riêng | Hỗ trợ qua `respawn` | Hỗ trợ mạnh qua `Restart=`<br>Nhiều tùy chọn: `always`, `on-failure`, `on-abnormal` |
+| **Quản lý socket** | Không hỗ trợ | Không hỗ trợ | Socket activation - khởi động service khi có request |
+| **Quản lý timer** | Dùng cron riêng biệt | Dùng cron riêng biệt | Tích hợp timer units - thay thế cron<br>`.timer` files |
+| **Quản lý mount point** | Dùng `/etc/fstab` + script | Dùng `/etc/fstab` + events | Tích hợp `.mount` units + fstab |
+| **Quản lý tài nguyên** | Không hỗ trợ | Không hỗ trợ | Tích hợp cgroups - giới hạn CPU, RAM, I/O |
+| **Hỗ trợ container** | Không | Không | Có - `systemd-nspawn` |
+| **Tương thích ngược** | N/A (đây là hệ thống gốc) | Tương thích với SysVinit scripts | Tương thích với cả SysVinit và Upstart<br>Chạy được legacy scripts |
+| **Độ phức tạp** | Đơn giản - dễ học | Trung bình | Phức tạp - nhiều tính năng, khó học ban đầu |
+| **Kích thước** | Nhỏ gọn (~100KB) | Trung bình (~500KB) | Lớn (~1-2MB core + các module) |
+| **Khả năng mở rộng** | Khó - cần viết shell script phức tạp | Khá tốt - dựa trên events | Rất tốt - nhiều loại units, plugins |
+| **Debugging** | Khó - phải đọc log và script | Trung bình - `initctl log-priority` | Dễ - `journalctl`, `systemd-analyze` |
+| **Phân tích thời gian boot** | Không tích hợp | Không tích hợp | `systemd-analyze blame`<br>`systemd-analyze critical-chain` |
+| **User session management** | Không | Hỗ trợ hạn chế | `systemd --user` - quản lý session của từng user |
+| **Network management** | Dùng scripts riêng | Dùng NetworkManager riêng | `systemd-networkd` tích hợp |
+| **Hostname management** | File `/etc/hostname` + scripts | File `/etc/hostname` | `hostnamectl` |
+| **Time/Date management** | `date`, `hwclock` commands | `date`, `hwclock` commands | `timedatectl` |
+| **Locale management** | File `/etc/locale.conf` | File `/etc/locale.conf` | `localectl` |
+| **Ví dụ script/unit** | `#!/bin/bash`<br>`case "$1" in`<br>`  start)`<br>`    /usr/bin/daemon &`<br>`    ;;`<br>`esac` | `description "My Service"`<br>`start on runlevel [2345]`<br>`stop on runlevel [!2345]`<br>`respawn`<br>`exec /usr/bin/daemon` | `[Unit]`<br>`Description=My Service`<br>`After=network.target`<br>`[Service]`<br>`ExecStart=/usr/bin/daemon`<br>`Restart=on-failure`<br>`[Install]`<br>`WantedBy=multi-user.target` |
+| **Distro sử dụng (hiện tại)** | Hầu như không còn<br>Slackware (vẫn dùng) | Ubuntu <15.04 (đã chuyển sang Systemd)<br>Chrome OS (vẫn dùng) | Hầu hết distro hiện đại:<br>RHEL/CentOS 7+<br>Debian 8+<br>Ubuntu 15.04+<br>Fedora 15+<br>Arch Linux<br>openSUSE |
+| **Ưu điểm chính** | • Đơn giản, dễ hiểu<br>• Ổn định, đã test qua thời gian<br>• Ít phụ thuộc<br>• Dễ debug với shell script | • Nhanh hơn SysVinit<br>• Event-driven linh hoạt<br>• Tương thích ngược tốt<br>• Khởi động lại service tự động | • Rất nhanh (khởi động song song)<br>• Quản lý toàn diện hệ thống<br>• Logging mạnh mẽ<br>• Quản lý phụ thuộc tự động<br>• Nhiều tính năng tích hợp |
+| **Nhược điểm chính** | • Quá chậm<br>• Không tự động hóa<br>• Khó quản lý phụ thuộc<br>• Thiếu tính năng hiện đại | • Ít được phát triển<br>• Cộng đồng nhỏ<br>• Tài liệu hạn chế<br>• Bị thay thế bởi Systemd | • Phức tạp, khó học<br>• "Làm quá nhiều thứ" (vi phạm Unix philosophy)<br>• Binary log khó đọc trực tiếp<br>• Gây tranh cãi trong cộng đồng |
+| **Trạng thái hiện tại** | Legacy - không còn phát triển | Deprecated - Canonical đã bỏ | Tiêu chuẩn hiện tại - đang phát triển mạnh |
+
+
+
 **Bật Dịch vụ**: Chạy các script khởi động SSH, Database, Web Server...
 
 **Mở cổng TTY**: Kích hoạt các màn hình dòng lệnh (Teletype).
