@@ -80,12 +80,16 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 
 **Bật Mạng**: Kích hoạt các giao tiếp mạng (IP, Routing).
 
+**Bật Dịch vụ**: Chạy các script khởi động SSH, Database, Web Server...
+
+**Mở cổng TTY**: Kích hoạt các màn hình dòng lệnh (Teletype).
+
+**Login Prompt**: Hiện dòng chữ yêu cầu Username/Password.
+
 # Sysvinit, Upstart và Systemd
 
 | Tiêu chí | SysVinit | Upstart | Systemd |
 |----------|----------|---------|---------|
-| **Năm ra đời** | 1983 | 2006 | 2010 |
-| **Phát triển bởi** | Miquel van Smoorenburg | Canonical (Ubuntu) | Lennart Poettering & Kay Sievers (Red Hat) |
 | **Tiến trình đầu tiên (PID 1)** | `/sbin/init` | `/sbin/init` (Upstart) | `/lib/systemd/systemd` |
 | **Triết lý thiết kế** | Đơn giản, tuần tự, dựa trên script | Hướng sự kiện (event-driven) | Hướng sự kiện + song song + quản lý toàn diện |
 | **Cơ chế khởi động** | Tuần tự (sequential) - chạy từng script một theo thứ tự | Bất đồng bộ (asynchronous) - phản ứng theo sự kiện | Song song (parallel) - khởi động nhiều service cùng lúc |
@@ -93,7 +97,7 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 | **File cấu hình chính** | `/etc/inittab` | `/etc/init/*.conf` | `/etc/systemd/system/*.service`<br>`/lib/systemd/system/*.service` |
 | **Định dạng cấu hình** | Shell script (.sh) | Cú pháp riêng (Upstart job) | Unit file (INI-like format) |
 | **Quản lý dịch vụ** | `/etc/init.d/[service] start/stop/restart` | `start/stop/restart [service]`<br>`initctl` | `systemctl start/stop/restart [service]` |
-| **Runlevel** | 0-6 (7 cấp độ rõ ràng)<br>0: Halt<br>1: Single user<br>2-5: Multi-user<br>6: Reboot | Hỗ trợ runlevel tương thích với SysVinit<br>Dùng "jobs" và "events" thay vì runlevel thuần túy | Target (thay thế runlevel)<br>`poweroff.target` (runlevel 0)<br>`rescue.target` (runlevel 1)<br>`multi-user.target` (runlevel 3)<br>`graphical.target` (runlevel 5)<br>`reboot.target` (runlevel 6) |
+| **Runlevel/Target** | **Runlevel 0**: Halt (tắt máy)<br>• Dừng tất cả services<br>• Unmount filesystems<br>• Tắt nguồn<br><br>**Runlevel 1**: Single-user mode<br>• Chế độ bảo trì<br>• Không có mạng<br>• Chỉ root login<br>• Dùng để sửa lỗi hệ thống<br><br>**Runlevel 2**: Multi-user (Debian/Ubuntu)<br>• Nhiều user đăng nhập được<br>• Có mạng<br>• Không có GUI<br>• Debian: bật đầy đủ services<br><br>**Runlevel 3**: Multi-user + Network<br>• Red Hat/CentOS: chế độ text đầy đủ<br>• Có mạng, có nhiều user<br>• Không có GUI<br>• Chạy server thường dùng level này<br><br>**Runlevel 4**: Không dùng<br>• Dành cho custom của admin<br>• Mặc định giống runlevel 3<br><br>**Runlevel 5**: Graphical mode<br>• Chế độ đầy đủ nhất<br>• Có GUI (X Window/Wayland)<br>• Có mạng, nhiều user<br>• Desktop Linux mặc định<br><br>**Runlevel 6**: Reboot<br>• Khởi động lại máy<br>• Dừng services<br>• Unmount filesystems<br>• Reboot kernel<br><br>**Kiểm tra**: `runlevel`<br>**Chuyển đổi**: `init [số]` hoặc `telinit [số]`<br>**Mặc định**: Thiết lập trong `/etc/inittab`<br>Ví dụ: `id:3:initdefault:` | **Tương thích Runlevel**:<br>Upstart giữ tương thích với SysVinit runlevel nhưng dùng **events**:<br><br>**Runlevel 0** → `runlevel PREVLEVEL=N RUNLEVEL=0`<br>• Event: shutdown<br><br>**Runlevel 1** → `runlevel PREVLEVEL=N RUNLEVEL=1`<br>• Event: single-user<br><br>**Runlevel 2-5** → `runlevel PREVLEVEL=N RUNLEVEL=[2-5]`<br>• Events: multi-user, graphical<br><br>**Runlevel 6** → `runlevel PREVLEVEL=N RUNLEVEL=6`<br>• Event: reboot<br><br>**Cú pháp trong job**:<br>`start on runlevel [2345]`<br>`stop on runlevel [!2345]`<br><br>**Kiểm tra**: `runlevel` hoặc `initctl list`<br>**Chuyển đổi**: `telinit [số]`<br>**Emit event**: `initctl emit [event-name]`<br><br>**Ưu điểm**: Linh hoạt hơn, không phụ thuộc hoàn toàn vào số runlevel | **Systemd Targets** (thay thế runlevel):<br><br>**poweroff.target** (≈ Runlevel 0)<br>• Tắt máy<br>• Alias: `systemctl poweroff`<br><br>**rescue.target** (≈ Runlevel 1)<br>• Single-user mode<br>• Chế độ cứu hộ<br>• Chỉ shell cơ bản<br>• Alias: `systemctl rescue`<br><br>**multi-user.target** (≈ Runlevel 2,3,4)<br>• Chế độ text đa người dùng<br>• Có mạng, đầy đủ services<br>• Không GUI<br>• Dùng cho server<br><br>**graphical.target** (≈ Runlevel 5)<br>• Chế độ đồ họa<br>• Kế thừa multi-user.target<br>• Thêm display manager (GDM, SDDM...)<br>• Desktop mặc định<br><br>**reboot.target** (≈ Runlevel 6)<br>• Khởi động lại<br>• Alias: `systemctl reboot`<br><br>**emergency.target** (mới)<br>• Khẩn cấp hơn rescue<br>• Shell tối thiểu nhất<br>• Filesystem chỉ đọc<br><br>**Kiểm tra**:<br>• `systemctl get-default` - xem target mặc định<br>• `systemctl list-units --type=target` - tất cả targets<br><br>**Chuyển đổi**:<br>• `systemctl isolate [target]` - chuyển ngay<br>• `systemctl set-default [target]` - đặt mặc định<br><br>**Ví dụ**:<br>• `systemctl isolate multi-user.target`<br>• `systemctl set-default graphical.target` |
 | **Kiểm tra trạng thái service** | `/etc/init.d/[service] status`<br>`ps aux \| grep [service]` | `status [service]`<br>`initctl status [service]` | `systemctl status [service]` |
 | **Quản lý phụ thuộc** | Thủ công qua thứ tự S[số] và K[số] trong script | Tự động dựa trên khai báo events<br>`start on`, `stop on` | Tự động + mạnh mẽ<br>`Requires=`, `After=`, `Before=`, `Wants=` |
 | **Xử lý song song** | Không hỗ trợ - chạy tuần tự | Có hỗ trợ cơ bản | Hỗ trợ mạnh mẽ - tối ưu hóa tự động |
@@ -121,11 +125,3 @@ Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" tr�
 | **Ưu điểm chính** | • Đơn giản, dễ hiểu<br>• Ổn định, đã test qua thời gian<br>• Ít phụ thuộc<br>• Dễ debug với shell script | • Nhanh hơn SysVinit<br>• Event-driven linh hoạt<br>• Tương thích ngược tốt<br>• Khởi động lại service tự động | • Rất nhanh (khởi động song song)<br>• Quản lý toàn diện hệ thống<br>• Logging mạnh mẽ<br>• Quản lý phụ thuộc tự động<br>• Nhiều tính năng tích hợp |
 | **Nhược điểm chính** | • Quá chậm<br>• Không tự động hóa<br>• Khó quản lý phụ thuộc<br>• Thiếu tính năng hiện đại | • Ít được phát triển<br>• Cộng đồng nhỏ<br>• Tài liệu hạn chế<br>• Bị thay thế bởi Systemd | • Phức tạp, khó học<br>• "Làm quá nhiều thứ" (vi phạm Unix philosophy)<br>• Binary log khó đọc trực tiếp<br>• Gây tranh cãi trong cộng đồng |
 | **Trạng thái hiện tại** | Legacy - không còn phát triển | Deprecated - Canonical đã bỏ | Tiêu chuẩn hiện tại - đang phát triển mạnh |
-
-
-
-**Bật Dịch vụ**: Chạy các script khởi động SSH, Database, Web Server...
-
-**Mở cổng TTY**: Kích hoạt các màn hình dòng lệnh (Teletype).
-
-**Login Prompt**: Hiện dòng chữ yêu cầu Username/Password.
