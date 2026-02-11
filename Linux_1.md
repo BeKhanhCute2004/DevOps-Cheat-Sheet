@@ -1,5 +1,5 @@
-[Hardware Information Commands](#Hardware Information Commands)
-[Linux Boot Process](#Linux Boot Process)
+[Hardware Information Commands](#hardware-information-commands)
+[Linux Boot Process](#linux-boot-process)
 
 # Hardware Information Commands
 | Command | Description | How to Read/Use |
