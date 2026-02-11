@@ -1,3 +1,6 @@
+[Hardware Information Commands](#Hardware Information Commands)
+[Linux Boot Process](#Linux Boot Process)
+
 # Hardware Information Commands
 | Command | Description | How to Read/Use |
 |-------|-------|-------|
