@@ -19,8 +19,8 @@
 # Linux Boot Process
 ## Giai đoạn 1: Đánh thức phần cứng (Firmware)
 **BIOS/UEFI thức dậy**: Đây là phần mềm nằm trong chip trên Mainboard.
-**POST (Power-On Self-Test)**: Kiểm tra các linh kiện cơ bản (RAM, CPU, Keyboard).
-**Tìm kiếm Mục lục (Partition Table)**:
+<br>**POST (Power-On Self-Test)**: Kiểm tra các linh kiện cơ bản (RAM, CPU, Keyboard).
+<br>**Tìm kiếm Mục lục (Partition Table)**:
 * BIOS: Tìm bảng MBR (512 byte đầu ổ cứng).
 * UEFI: Tìm phân vùng EFI (ESP) định dạng FAT32.
 **Chuyển giao**: BIOS/UEFI nạp đoạn mã mồi của Bootloader vào RAM và ra lệnh cho CPU thực thi.
