@@ -4,7 +4,10 @@
 
 [Linux Boot Process](#linux-boot-process)
 
-[Sysvinit Upstart and Systemd](#sysvinit-upstart-and-systemd)
+[Compare Sysvinit Upstart and Systemd](#sysvinit-upstart-and-systemd)
+
+[Systemd Utilize](#systemd)
+
 
 # Hardware Information Commands
 
