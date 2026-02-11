@@ -16,3 +16,41 @@
 | badblocks -s /dev/[device_name] | Test for unreadable blocks on the device/disk |  |
 | fsck /dev/[device_name] | 	Run a disk check on an unmounted disk or partition |  |
 
+# Linux Boot Process
+## Giai đoạn 1: Đánh thức phần cứng (Firmware)
+**BIOS/UEFI thức dậy**: Đây là phần mềm nằm trong chip trên Mainboard.
+**POST (Power-On Self-Test)**: Kiểm tra các linh kiện cơ bản (RAM, CPU, Keyboard).
+**Tìm kiếm Mục lục (Partition Table)**:
+* BIOS: Tìm bảng MBR (512 byte đầu ổ cứng).
+* UEFI: Tìm phân vùng EFI (ESP) định dạng FAT32.
+**Chuyển giao**: BIOS/UEFI nạp đoạn mã mồi của Bootloader vào RAM và ra lệnh cho CPU thực thi.
+  
+## Giai đoạn 2: Trình khởi động (Bootloader - GRUB)
+Lúc này mã lệnh của GRUB đã nằm trên RAM:
+**GRUB Stage 1**: Đoạn mã cực nhỏ từ MBR/EFI sẽ tìm và nạp phần còn lại của GRUB từ thư mục /boot/grub trên ổ cứng.
+**Menu hiển thị**: Bạn thấy danh sách các Kernel Linux hoặc Windows.
+**Lựa chọn**:
+* Nếu chọn Windows: GRUB chuyển giao (Chainload) cho bootmgr.efi.
+* Nếu chọn Linux: GRUB nạp file Kernel và file initrd vào RAM.
+**Kết thúc**: GRUB bàn giao toàn bộ quyền điều khiển RAM cho Kernel.
+
+## Giai đoạn 3: Nhân hệ điều hành & Đội tiền trạm (Kernel & initrd)
+Đây là giai đoạn "nhảy" từ RAM vào ổ cứng thật:
+**Kernel thực thi**: Tự giải nén và bắt đầu quản lý CPU, RAM.
+**initrd (Hệ điều hành mini)**: Vì Kernel chưa có driver ổ cứng, nó sẽ dùng "balo" initrd (đã nạp sẵn trên RAM) để lấy các driver thiết yếu.
+**Nhận diện phần cứng**: initrd giúp Kernel "thấy" được ổ cứng thật, card mạng, các phân vùng LVM/RAID.
+**Switch Root**: Kernel gắn (mount) phân vùng gốc / từ ổ cứng thật vào hệ thống và xóa initrd khỏi RAM để tiết kiệm chỗ.
+
+## Giai đoạn 4: Tiến trình tổ tiên (Init Process)
+Sau khi đã ở trong ổ cứng thật, Kernel gọi "người quản gia" trưởng:
+**Chạy /sbin/init**: Đây là tiến trình đầu tiên (PID 1).
+**Đọc cấu hình**: init đọc file /etc/inittab (đối với SysVinit) hoặc các file Unit (đối với Systemd hiện đại).
+**Xác định Runlevel**: Hệ thống xác định sẽ chạy ở chế độ nào (thường là Runlevel 3 - Server hoặc Runlevel 5 - Desktop).
+
+## Giai đoạn 5: Bật dịch vụ & Đăng nhập (Services & Login)
+"Quản gia" init bắt đầu gọi các nhân viên khác dậy theo thứ tự:
+**Kiểm tra ổ đĩa (fsck)**: Đảm bảo dữ liệu không bị lỗi.
+**Bật Mạng**: Kích hoạt các giao tiếp mạng (IP, Routing).
+**Bật Dịch vụ**: Chạy các script khởi động SSH, Database, Web Server...
+**Mở cổng TTY**: Kích hoạt các màn hình dòng lệnh (Teletype).
+**Login Prompt**: Hiện dòng chữ yêu cầu Username/Password.
