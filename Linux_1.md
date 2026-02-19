@@ -8,7 +8,11 @@
 
 [Cách dùng Systemd](#systemd)
 
-[Thông tin ổ đĩa và Mount](#disk-usage-commands)
+[Thông tin ổ đĩa cơ bản](#disk-usage-commands)
+
+[Phân vùng ổ đĩa](#partitioning)
+
+[Định dạng file](#filesystem-files)
 
 [LVM (Logical Volume Manager)](#lvm)
 
@@ -508,4 +512,387 @@ htop             # Giao diện đẹp hơn top
 # Xóa swap nhưng vẫn hiển thị?
 swapoff -a       # Tắt tất cả swap
 swapon --show    # Kiểm tra lại
+```
+
+# Partitioning
+## Quy trình chuẩn bị ổ đĩa trong Linux
+
+1. **Lắp đặt vật lý** (hoặc cấp phát ổ đĩa cho VM)
+2. **Phân vùng** (fdisk/gdisk/parted)
+3. **Định dạng** filesystem (mkfs)
+4. **Tạo mount point** (mkdir)
+5. **Mount** thiết bị
+6. **Thêm vào `/etc/fstab`** để tự động mount khi boot
+
+---
+
+## Quy ước đặt tên thiết bị
+
+| Tên thiết bị | Mô tả | Ví dụ |
+|--------------|-------|-------|
+| `/dev/hda` | Ổ cứng IDE (cũ) | `/dev/hda1` = ổ IDE đầu tiên, phân vùng 1 |
+| `/dev/sda` | Ổ cứng SATA/SCSI/SSD | `/dev/sda1` = ổ SATA đầu tiên, phân vùng 1 |
+| `/dev/nvme0n1` | SSD NVMe | `/dev/nvme0n1p1` = SSD NVMe đầu tiên, phân vùng 1 |
+| `/dev/vda` | Ổ đĩa ảo (VM) | `/dev/vda1` = ổ ảo đầu tiên, phân vùng 1 |
+
+---
+
+## Loại phân vùng
+
+| Loại | Mô tả | Số thứ tự |
+|------|-------|-----------|
+| **Primary** (Chính) | Phân vùng độc lập, tối đa 4 phân vùng (giới hạn MBR) | 1-4 |
+| **Extended** (Mở rộng) | Container chứa các phân vùng logic, chỉ có 1 trên mỗi ổ | Tính vào 1 trong 4 primary |
+| **Logical** (Logic) | Phân vùng trong Extended, dùng khi cần >4 phân vùng | Từ 5 trở đi |
+| **Swap** | Phân vùng bộ nhớ ảo hỗ trợ RAM | Bất kỳ |
+
+**Khuyến nghị Swap size**:
+- RAM < 2GB → Swap = 2 × RAM
+- RAM 2-8GB → Swap = RAM
+- RAM > 8GB → Swap = 4-8GB
+
+---
+
+## So sánh công cụ phân vùng
+
+| Công cụ | Partition Table | Giới hạn | Tính năng |
+|---------|-----------------|----------|-----------|
+| **fdisk** | MBR | Phân vùng max 2TB, tối đa 4 primary | Công cụ cơ bản, phổ biến nhất |
+| **gdisk** | GPT (GUID) | Phân vùng >2TB, tối đa 128 primary | Thay thế fdisk cho ổ đĩa lớn |
+| **parted** | MBR & GPT | Không giới hạn | Resize, tạo/sửa phân vùng, có GUI (gparted) |
+
+---
+
+## fdisk - Công cụ phân vùng MBR
+
+### Lệnh cơ bản
+
+| Lệnh | Mô tả |
+|------|-------|
+| `fdisk /dev/sda` | Mở fdisk cho ổ đĩa `/dev/sda` |
+| `fdisk -l` | Liệt kê tất cả ổ đĩa và phân vùng |
+| `fdisk -l /dev/sda` | Xem chi tiết phân vùng của `/dev/sda` |
+
+### Lệnh tương tác (sau khi chạy `fdisk /dev/sda`)
+
+| Phím | Chức năng | Giải thích |
+|------|-----------|------------|
+| `p` | Print partition table | Xem danh sách phân vùng hiện tại |
+| `n` | New partition | Tạo phân vùng mới |
+| → `p` | Primary | Tạo primary partition (chọn số 1-4) |
+| → `e` | Extended | Tạo extended partition (chọn số 2-4) |
+| → `l` | Logical | Tạo logical partition (số từ 5 trở đi) |
+| `t` | Change partition type | Đổi loại phân vùng |
+| `d` | Delete partition | Xóa phân vùng |
+| `w` | Write changes | **Lưu thay đổi** xuống ổ đĩa |
+| `q` | Quit without saving | Thoát không lưu |
+| `l` | List partition types | Liệt kê mã hex của các loại phân vùng |
+
+### Partition Type Codes (MBR) - **Quan trọng cho thi**
+
+| Mã Hex | Loại phân vùng |
+|--------|----------------|
+| **82** | Linux swap |
+| **83** | Linux (mặc định) |
+| **85** | Linux extended |
+| **8e** | Linux LVM |
+| **fd** | Linux RAID |
+
+### Ví dụ thực tế
+```bash
+# 1. Xem danh sách phân vùng
+fdisk -l /dev/sdb
+
+# 2. Tạo phân vùng mới
+fdisk /dev/sdb
+# Trong fdisk:
+n          # Tạo phân vùng mới
+p          # Chọn primary
+1          # Số phân vùng 1
+[Enter]    # First sector (mặc định)
++10G       # Last sector (tạo phân vùng 10GB)
+t          # Đổi type
+1          # Chọn phân vùng 1
+8e         # Đổi thành Linux LVM
+p          # Xem lại
+w          # Lưu và thoát
+
+# 3. Thông báo kernel về thay đổi phân vùng
+partprobe /dev/sdb
+# hoặc
+fdisk -l /dev/sdb
+```
+
+---
+
+## gdisk - Công cụ phân vùng GPT
+
+### Lệnh cơ bản
+
+| Lệnh | Mô tả |
+|------|-------|
+| `gdisk /dev/sda` | Mở gdisk cho ổ đĩa `/dev/sda` |
+| `gdisk -l /dev/sda` | Xem chi tiết GPT partition table |
+
+### Lệnh tương tác (tương tự fdisk)
+
+| Phím | Chức năng |
+|------|-----------|
+| `p` | Print partition table |
+| `n` | New partition (tạo primary, số 1-128) |
+| `t` | Change partition type |
+| `d` | Delete partition |
+| `w` | Write changes |
+| `q` | Quit without saving |
+| `?` | Help menu |
+
+### Partition Type Codes (GPT) - **Quan trọng cho thi**
+
+| Mã Hex | Loại phân vùng |
+|--------|----------------|
+| **8200** | Linux swap |
+| **8300** | Linux filesystem (mặc định) |
+| **8301** | Linux reserved |
+| **8e00** | Linux LVM |
+| **fd00** | Linux RAID |
+
+---
+
+## parted - Công cụ phân vùng nâng cao
+
+### Lệnh cơ bản
+
+| Lệnh | Mô tả |
+|------|-------|
+| `parted /dev/sda` | Mở parted cho `/dev/sda` |
+| `parted -l` | Liệt kê tất cả ổ đĩa và phân vùng |
+| `parted /dev/sda print` | Xem partition table của `/dev/sda` |
+
+### Lệnh tương tác
+
+| Lệnh | Mô tả | Ví dụ |
+|------|-------|-------|
+| `help` | Hiển thị trợ giúp | |
+| `print` | Xem partition table | |
+| `mklabel [type]` | Tạo partition table mới | `mklabel gpt` hoặc `mklabel msdos` |
+| `mkpart [name] [start] [end]` | Tạo phân vùng | `mkpart primary 0% 10GB` |
+| `rm [number]` | Xóa phân vùng | `rm 1` |
+| `quit` | Thoát | |
+
+### Ví dụ thực tế
+```bash
+# Tạo GPT partition table và phân vùng
+parted /dev/sdc
+(parted) mklabel gpt              # Tạo GPT table
+(parted) mkpart primary 0% 20GB   # Phân vùng 20GB từ đầu ổ
+(parted) mkpart primary 20GB 50GB # Phân vùng 30GB tiếp theo
+(parted) print                    # Xem kết quả
+(parted) quit
+```
+
+---
+
+# Filesystem Types
+
+| Filesystem | Mô tả | Khi nào dùng |
+|------------|-------|--------------|
+| **ext2** | Filesystem Linux cơ bản, không journaling | USB, /boot (hiếm dùng) |
+| **ext3** | ext2 + journaling (khôi phục nhanh khi lỗi) | Hệ thống cũ |
+| **ext4** | ext3 cải tiến, hiệu suất cao hơn | **Khuyên dùng** cho hầu hết trường hợp |
+| **xfs** | Hiệu suất cao với nhiều file nhỏ | Database, server lưu trữ lớn |
+| **btrfs** | Tính năng nâng cao (snapshot, compression) | Hệ thống cần snapshot, NAS |
+| **ReiserFS** | Journaling filesystem đầu tiên | Ít dùng (developer đã qua đời) |
+| **vfat** | FAT32 (DOS/Windows) | USB, chia sẻ với Windows |
+| **iso9660** | Filesystem CD-ROM | Tạo file ISO |
+| **udf** | Filesystem DVD | Ghi DVD |
+
+---
+
+## mkfs - Tạo Filesystem
+
+### Lệnh cơ bản
+
+| Lệnh | Mô tả |
+|------|-------|
+| `mkfs -t [type] [device]` | Tạo filesystem loại chỉ định |
+| `mkfs.ext4 [device]` | Tạo ext4 (cách viết tắt) |
+| `mkfs.xfs [device]` | Tạo xfs |
+| `mkswap [device]` | Tạo swap partition |
+
+### Tùy chọn quan trọng
+
+| Tùy chọn | Mô tả | Ví dụ |
+|----------|-------|-------|
+| `-t [type]` | Loại filesystem | `-t ext4` |
+| `-b [size]` | Block size (mặc định 4096 bytes) | `-b 8192` |
+| `-m [%]` | % dung lượng dành cho root | `-m 5` (5%) |
+| `-L [label]` | Đặt nhãn volume | `-L MyData` |
+| `-O [option]` | Tùy chọn đặc biệt | `-O sparse_super` |
+
+### Ví dụ thực tế
+```bash
+# 1. Tạo ext4 filesystem đơn giản
+mkfs.ext4 /dev/sdb1
+
+# 2. Tạo ext4 với tùy chọn nâng cao
+mkfs -t ext4 -b 8192 -m 10 -L LargeData -O sparse_super /dev/sde4
+# Block size 8KB (cho file lớn)
+# 10% dành cho root
+# Nhãn "LargeData"
+# Ít superblock backup hơn
+
+# 3. Tạo swap
+mkswap /dev/sdb2
+swapon /dev/sdb2
+
+# 4. Tạo xfs
+mkfs.xfs /dev/sdc1
+
+# 5. Tạo vfat (FAT32)
+mkfs.vfat /dev/sdd1
+```
+
+---
+
+## Superblock & Inode - Khái niệm quan trọng
+
+### Superblock
+
+**Định nghĩa**: Phần đầu của filesystem chứa metadata (kích thước, inode stats, thời gian check cuối).
+
+**Vị trí**: 
+- Block đầu tiên + nhiều bản sao ở vị trí khác (để khôi phục)
+- **Backup superblock đầu tiên của ext filesystem**: block **8193** ⚠️ **Quan trọng cho thi**
+
+**Khôi phục superblock**:
+```bash
+# Xem vị trí superblock backup
+dumpe2fs /dev/sda1 | grep -i superblock
+
+# Khôi phục từ backup
+e2fsck -b 8193 /dev/sda1
+```
+
+### Inode
+
+**Định nghĩa**: Cấu trúc dữ liệu chứa metadata của file/thư mục.
+
+**Chứa thông tin**:
+- Quyền, owner, group
+- Kích thước file
+- Timestamps (atime, mtime, ctime)
+- Con trỏ đến data blocks
+- ⚠️ **KHÔNG chứa tên file** (tên file lưu trong directory entry)
+
+**Lệnh liên quan**:
+
+| Lệnh | Mô tả |
+|------|-------|
+| `ls -i [file]` | Xem inode number của file |
+| `stat [file]` | Xem chi tiết inode |
+| `df -i` | Xem số inode available/used trên filesystems |
+
+**Lưu ý**: Số lượng inode **cố định** khi tạo filesystem, không thay đổi được sau đó.
+```bash
+# Xem inode number
+ls -i /var/log/messages
+# Output: 123456 /var/log/messages
+
+# Xem chi tiết inode
+stat /var/log/messages
+
+# Kiểm tra inode usage
+df -i
+# Nếu IUse% = 100% → không tạo được file mới dù còn dung lượng trống
+```
+
+---
+
+## File cấu hình
+
+### `/etc/mke2fs.conf`
+
+File cấu hình mặc định cho `mke2fs` (tạo ext2/ext3/ext4).
+
+**Nội dung**: Định nghĩa block size, inode ratio, reserved blocks mặc định cho từng loại filesystem.
+
+**Thay đổi hành vi**: Dùng `-O [option]` khi chạy `mkfs` để override cấu hình.
+
+---
+
+## Workflow hoàn chỉnh: Từ ổ đĩa mới đến sử dụng
+```bash
+# Bước 1: Xem ổ đĩa mới
+lsblk
+fdisk -l
+
+# Bước 2: Phân vùng (ví dụ dùng fdisk cho MBR)
+fdisk /dev/sdb
+# n → p → 1 → [Enter] → +50G → t → 1 → 83 → w
+
+# Bước 3: Thông báo kernel
+partprobe /dev/sdb
+
+# Bước 4: Tạo filesystem
+mkfs.ext4 -L MyData /dev/sdb1
+
+# Bước 5: Tạo mount point
+mkdir -p /mnt/mydata
+
+# Bước 6: Mount
+mount /dev/sdb1 /mnt/mydata
+
+# Bước 7: Kiểm tra
+df -h /mnt/mydata
+lsblk
+
+# Bước 8: Tự động mount khi boot (thêm vào /etc/fstab)
+echo "/dev/sdb1  /mnt/mydata  ext4  defaults  0  2" >> /etc/fstab
+
+# Hoặc dùng UUID (khuyên dùng)
+blkid /dev/sdb1  # Copy UUID
+echo "UUID=xxxx-xxxx  /mnt/mydata  ext4  defaults  0  2" >> /etc/fstab
+
+# Bước 9: Test fstab
+mount -a  # Mount tất cả trong fstab
+```
+
+---
+
+## Lệnh bổ sung quan trọng
+
+| Lệnh | Mô tả |
+|------|-------|
+| `blkid` | Xem UUID và filesystem type của tất cả partitions |
+| `blkid /dev/sdb1` | Xem UUID của partition cụ thể |
+| `partprobe [device]` | Thông báo kernel đọc lại partition table |
+| `dumpe2fs /dev/sda1` | Xem chi tiết superblock và filesystem info (ext) |
+| `tune2fs -l /dev/sda1` | Xem/sửa filesystem parameters (ext) |
+| `e2label /dev/sda1 [label]` | Xem/đặt label cho ext filesystem |
+
+---
+
+## Troubleshooting
+```bash
+# Partition mới tạo không hiển thị?
+partprobe /dev/sdb
+# hoặc
+fdisk -l /dev/sdb
+
+# Filesystem bị lỗi?
+fsck /dev/sdb1          # Phải unmount trước
+e2fsck -f /dev/sdb1     # Force check cho ext
+
+# Superblock bị hỏng?
+dumpe2fs /dev/sdb1 | grep -i superblock  # Tìm backup
+e2fsck -b 8193 /dev/sdb1                 # Khôi phục từ backup
+
+# Hết inode?
+df -i                   # Kiểm tra IUse%
+# → Xóa file không cần thiết hoặc tạo lại filesystem với nhiều inode hơn
+
+# Mount failed?
+mount -t ext4 /dev/sdb1 /mnt/test  # Chỉ định rõ filesystem type
+dmesg | tail                       # Xem kernel message
+journalctl -xe                     # Xem system log
 ```
