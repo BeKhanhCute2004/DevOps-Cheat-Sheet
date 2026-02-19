@@ -218,301 +218,7 @@ Disk usage commands provide insight into disk space status. You can use the `df`
 | `mount [device_path] [mount_point]` | Mount a device | Ví dụ: `mount /dev/sdb1 /mnt/usb`<br>**Lưu ý 1**: thư mục mount point phải tồn tại trước (`mkdir /mnt/usb`).<br>**Lưu ý 2**: thêm `-t [fstype]` nếu muốn chỉ định loại filesystem (vd: `-t ext4`, `-t vfat`).<br>**Lưu ý 3**: mount thủ công sẽ mất sau khi reboot — thêm vào `/etc/fstab` để mount tự động. |
 | `umount [device_path]` | Unmount a device | Ví dụ: `umount /dev/sdb1` hoặc `umount /mnt/usb`<br>**Lưu ý 1**: không thể umount nếu có process đang dùng — dùng `lsof [mount_point]` để tìm process đó.<br>**Lưu ý 2**: luôn umount trước khi rút thiết bị để tránh mất dữ liệu. |
 
-# LVM
-
-LVM cho phép quản lý ổ đĩa linh hoạt hơn phân vùng truyền thống.
-
-**Cấu trúc 3 tầng**:
-```
-Physical Volumes (PV) → Volume Groups (VG) → Logical Volumes (LV)
-      ổ cứng vật lý          nhóm ổ cứng           phân vùng logic
-```
-
-**Ví dụ thực tế**:
-- **PV**: `/dev/sda1`, `/dev/sdb1` (các phân vùng vật lý)
-- **VG**: `vg_data` (gộp sda1 + sdb1 thành 1 nhóm)
-- **LV**: `lv_home`, `lv_var` (chia VG thành các phân vùng logic)
-
-**Lợi ích**:
-- ✅ Mở rộng/thu nhỏ phân vùng dễ dàng (không cần reboot)
-- ✅ Gộp nhiều ổ cứng thành một
-- ✅ Snapshot để backup
-- ✅ Di chuyển dữ liệu giữa các ổ đĩa
-
 ---
-
-## LVM Commands - Physical Volumes (PV)
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `pvdisplay` | Hiển thị chi tiết PV | **PV Name**: tên thiết bị (vd: `/dev/sda1`).<br>**VG Name**: PV này thuộc VG nào.<br>**PV Size**: dung lượng tổng.<br>**PE Size**: kích thước 1 đơn vị cơ bản (mặc định 4MB).<br>**Free PE**: số đơn vị còn trống. |
-| `pvs` | Liệt kê PV ngắn gọn | **PV**: tên PV.<br>**VG**: thuộc VG nào.<br>**Fmt**: định dạng (lvm2).<br>**Attr**: thuộc tính (`a` = allocatable).<br>**PSize / PFree**: tổng dung lượng / còn trống. |
-| `pvcreate /dev/sdX` | Tạo PV mới | Ví dụ: `pvcreate /dev/sdb1`<br>**Lưu ý**: phân vùng phải được tạo trước bằng `fdisk` hoặc `parted`. |
-| `pvremove /dev/sdX` | Xóa PV | **Lưu ý**: PV phải không thuộc VG nào mới xóa được. Dùng `vgreduce` để gỡ PV ra khỏi VG trước. |
-| `pvresize /dev/sdX` | Thay đổi kích thước PV | Dùng sau khi mở rộng phân vùng vật lý. |
-
----
-
-## LVM Commands - Volume Groups (VG)
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `vgdisplay` | Hiển thị chi tiết VG | **VG Name**: tên VG.<br>**VG Size**: tổng dung lượng.<br>**PE Size**: kích thước 1 PE (Physical Extent).<br>**Total PE / Free PE**: tổng PE / PE còn trống.<br>**VG UUID**: ID duy nhất của VG. |
-| `vgs` | Liệt kê VG ngắn gọn | **VG**: tên VG.<br>**#PV**: số PV trong VG này.<br>**#LV**: số LV đã tạo.<br>**VSize / VFree**: tổng dung lượng / còn trống. |
-| `vgcreate [vg_name] /dev/sdX /dev/sdY` | Tạo VG mới | Ví dụ: `vgcreate vg_data /dev/sdb1 /dev/sdc1`<br>Gộp nhiều PV thành một VG. |
-| `vgextend [vg_name] /dev/sdX` | Thêm PV vào VG | Ví dụ: `vgextend vg_data /dev/sdd1`<br>Mở rộng dung lượng VG. |
-| `vgreduce [vg_name] /dev/sdX` | Gỡ PV ra khỏi VG | **Lưu ý**: PV phải không chứa dữ liệu (dùng `pvmove` để di chuyển dữ liệu trước). |
-| `vgremove [vg_name]` | Xóa VG | **Lưu ý**: VG phải không chứa LV nào. Xóa hết LV trước bằng `lvremove`. |
-| `vgrename [old_name] [new_name]` | Đổi tên VG | Ví dụ: `vgrename vg_data vg_storage` |
-
----
-
-## LVM Commands - Logical Volumes (LV)
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `lvdisplay` | Hiển thị chi tiết LV | **LV Path**: đường dẫn đầy đủ (vd: `/dev/vg_data/lv_home`).<br>**LV Name**: tên LV.<br>**VG Name**: thuộc VG nào.<br>**LV Size**: dung lượng LV.<br>**LV Status**: `available` hoặc `NOT available`. |
-| `lvs` | Liệt kê LV ngắn gọn | **LV**: tên LV.<br>**VG**: thuộc VG nào.<br>**Attr**: thuộc tính (`-wi-ao--` = writable, active, open).<br>**LSize**: dung lượng. |
-| `lvcreate -L [size] -n [lv_name] [vg_name]` | Tạo LV mới | Ví dụ: `lvcreate -L 20G -n lv_home vg_data`<br>Tạo LV 20GB tên `lv_home` trong VG `vg_data`. |
-| `lvcreate -l 100%FREE -n [lv_name] [vg_name]` | Tạo LV dùng hết dung lượng VG | Ví dụ: `lvcreate -l 100%FREE -n lv_storage vg_data`<br>Dùng toàn bộ dung lượng còn trống. |
-| `lvextend -L +[size] /dev/[vg]/[lv]` | Mở rộng LV | Ví dụ: `lvextend -L +10G /dev/vg_data/lv_home`<br>Thêm 10GB vào LV.<br>**Lưu ý**: sau đó phải resize filesystem bằng `resize2fs` (ext4) hoặc `xfs_growfs` (xfs). |
-| `lvreduce -L -[size] /dev/[vg]/[lv]` | Thu nhỏ LV | Ví dụ: `lvreduce -L -5G /dev/vg_data/lv_home`<br>**NGUY HIỂM**: phải unmount và resize filesystem trước, nếu không sẽ mất dữ liệu. |
-| `lvremove /dev/[vg]/[lv]` | Xóa LV | Ví dụ: `lvremove /dev/vg_data/lv_home`<br>**Lưu ý**: phải unmount trước. Dữ liệu sẽ mất hoàn toàn. |
-| `lvrename [vg_name] [old_lv] [new_lv]` | Đổi tên LV | Ví dụ: `lvrename vg_data lv_old lv_new` |
-
----
-
-## LVM - Workflow thực tế
-
-### Tạo LVM từ đầu
-```bash
-# 1. Tạo phân vùng trên ổ cứng (dùng fdisk hoặc parted)
-fdisk /dev/sdb
-# Tạo phân vùng mới, chọn type 8e (Linux LVM)
-
-# 2. Tạo Physical Volume
-pvcreate /dev/sdb1
-
-# 3. Tạo Volume Group
-vgcreate vg_data /dev/sdb1
-
-# 4. Tạo Logical Volume
-lvcreate -L 50G -n lv_home vg_data
-
-# 5. Tạo filesystem
-mkfs.ext4 /dev/vg_data/lv_home
-
-# 6. Mount
-mkdir /home_backup
-mount /dev/vg_data/lv_home /home_backup
-
-# 7. Tự động mount khi boot (thêm vào /etc/fstab)
-echo "/dev/vg_data/lv_home /home_backup ext4 defaults 0 0" >> /etc/fstab
-```
-
-### Mở rộng LV khi hết chỗ
-```bash
-# 1. Kiểm tra dung lượng còn trống trong VG
-vgs
-
-# 2. Mở rộng LV
-lvextend -L +20G /dev/vg_data/lv_home
-
-# 3. Mở rộng filesystem (không cần unmount với ext4/xfs)
-# Với ext4:
-resize2fs /dev/vg_data/lv_home
-# Với xfs:
-xfs_growfs /home_backup
-
-# 4. Kiểm tra
-df -h
-```
-
-### Thêm ổ cứng mới vào VG
-```bash
-# 1. Tạo PV từ ổ mới
-pvcreate /dev/sdc1
-
-# 2. Thêm vào VG
-vgextend vg_data /dev/sdc1
-
-# 3. Kiểm tra
-vgs
-pvs
-```
-
----
-
-## LVM Snapshot (Bonus)
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `lvcreate -L [size] -s -n [snap_name] /dev/[vg]/[lv]` | Tạo snapshot | Ví dụ: `lvcreate -L 5G -s -n lv_home_snap /dev/vg_data/lv_home`<br>Tạo snapshot 5GB của `lv_home`.<br>**Dùng để**: backup trước khi update hệ thống. |
-| `lvconvert --merge /dev/[vg]/[snap_name]` | Restore từ snapshot | Ví dụ: `lvconvert --merge /dev/vg_data/lv_home_snap`<br>**Lưu ý**: phải unmount LV gốc trước. Snapshot sẽ bị xóa sau khi merge. |
-| `lvremove /dev/[vg]/[snap_name]` | Xóa snapshot | Snapshot cũng chiếm dung lượng, nên xóa khi không cần. |
-
----
-
-## Troubleshooting
-```bash
-
-# LV không mount được?
-lvchange -ay /dev/vg_data/lv_home  # Kích hoạt LV
-mount /dev/vg_data/lv_home /mnt    # Mount thử
-
-# VG không nhận diện được?
-vgscan           # Quét lại VG
-vgchange -ay     # Kích hoạt tất cả VG
-# SWAP
-
-```
-
----
-
-# SWAP
-
-**Swap** là vùng trên ổ cứng dùng làm RAM ảo khi RAM thật đầy.
-
-**Khi nào dùng Swap?**
-- RAM < 2GB → Swap = 2 × RAM
-- RAM 2-8GB → Swap = RAM
-- RAM > 8GB → Swap = 4-8GB (hoặc không cần)
-
-**Loại Swap**:
-- **Swap Partition**: phân vùng riêng (khuyên dùng)
-- **Swap File**: file trong filesystem (linh hoạt hơn)
-
----
-
-## Swap Commands - Swap Partition
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `swapon --show` | Hiển thị swap đang active | **NAME**: tên swap device.<br>**TYPE**: partition hoặc file.<br>**SIZE**: dung lượng.<br>**USED**: đã dùng bao nhiêu.<br>**PRIO**: độ ưu tiên (-2 đến 32767, cao hơn = ưu tiên hơn). |
-| `free -h` | Xem tổng RAM và Swap | **Swap**: dòng swap cho biết total/used/free.<br>**Lưu ý**: nếu swap used cao (~80%) thì hệ thống đang thiếu RAM. |
-| `mkswap /dev/sdX` | Tạo swap trên phân vùng | Ví dụ: `mkswap /dev/sdb2`<br>**Lưu ý**: phân vùng type phải là 82 (Linux swap) trong fdisk. |
-| `swapon /dev/sdX` | Kích hoạt swap | Ví dụ: `swapon /dev/sdb2`<br>Swap sẽ mất sau khi reboot nếu không thêm vào `/etc/fstab`. |
-| `swapoff /dev/sdX` | Tắt swap | Ví dụ: `swapoff /dev/sdb2`<br>**Lưu ý**: RAM phải đủ để chứa dữ liệu từ swap, nếu không hệ thống sẽ crash. |
-| `swapon -a` | Kích hoạt tất cả swap trong `/etc/fstab` | Dùng sau khi sửa `/etc/fstab` để test. |
-
----
-
-## Swap Commands - Swap File
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `dd if=/dev/zero of=/swapfile bs=1M count=[size_MB]` | Tạo swap file | Ví dụ: `dd if=/dev/zero of=/swapfile bs=1M count=2048`<br>Tạo file swap 2GB. |
-| `fallocate -l [size]G /swapfile` | Tạo swap file nhanh hơn | Ví dụ: `fallocate -l 2G /swapfile`<br>Nhanh hơn `dd` nhưng không hỗ trợ trên một số filesystem. |
-| `chmod 600 /swapfile` | Đặt quyền cho swap file | **BẮT BUỘC** vì lý do bảo mật (chỉ root đọc/ghi). |
-| `mkswap /swapfile` | Format swap file | Biến file thường thành swap. |
-| `swapon /swapfile` | Kích hoạt swap file | Sau đó thêm vào `/etc/fstab` để tự động mount:<br>`/swapfile none swap sw 0 0` |
-
----
-
-## Swap - Workflow thực tế
-
-### Tạo Swap Partition
-```bash
-# 1. Tạo phân vùng swap bằng fdisk
-fdisk /dev/sdb
-# n → tạo phân vùng mới
-# t → đổi type thành 82 (Linux swap)
-# w → lưu
-
-# 2. Tạo swap
-mkswap /dev/sdb2
-
-# 3. Kích hoạt swap
-swapon /dev/sdb2
-
-# 4. Kiểm tra
-swapon --show
-free -h
-
-# 5. Tự động mount khi boot
-echo "/dev/sdb2 none swap sw 0 0" >> /etc/fstab
-```
-
-### Tạo Swap File (khuyên dùng vì linh hoạt)
-```bash
-# 1. Tạo file 2GB
-fallocate -l 2G /swapfile
-
-# 2. Đặt quyền
-chmod 600 /swapfile
-
-# 3. Format swap
-mkswap /swapfile
-
-# 4. Kích hoạt
-swapon /swapfile
-
-# 5. Kiểm tra
-swapon --show
-free -h
-
-# 6. Tự động mount khi boot
-echo "/swapfile none swap sw 0 0" >> /etc/fstab
-```
-
-### Tăng kích thước Swap File
-```bash
-# 1. Tắt swap
-swapoff /swapfile
-
-# 2. Xóa file cũ
-rm /swapfile
-
-# 3. Tạo file mới lớn hơn
-fallocate -l 4G /swapfile
-
-# 4. Đặt quyền và format
-chmod 600 /swapfile
-mkswap /swapfile
-
-# 5. Kích hoạt lại
-swapon /swapfile
-```
-
-### Xóa Swap
-```bash
-# 1. Tắt swap
-swapoff /swapfile
-
-# 2. Xóa dòng trong /etc/fstab
-vim /etc/fstab
-# Xóa dòng: /swapfile none swap sw 0 0
-
-# 3. Xóa file
-rm /swapfile
-```
-
----
-
-## Swappiness - Điều chỉnh mức độ dùng Swap
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `cat /proc/sys/vm/swappiness` | Xem giá trị swappiness hiện tại | **Giá trị**: 0-100<br>**0**: chỉ dùng swap khi RAM cạn kiệt.<br>**10**: ưu tiên RAM, ít dùng swap (khuyên dùng cho server).<br>**60**: mặc định, cân bằng.<br>**100**: ưu tiên dùng swap (chậm). |
-| `sysctl vm.swappiness=[value]` | Đặt swappiness tạm thời | Ví dụ: `sysctl vm.swappiness=10`<br>**Lưu ý**: mất sau khi reboot. |
-| `echo "vm.swappiness=10" >> /etc/sysctl.conf` | Đặt swappiness vĩnh viễn | Thêm vào file cấu hình để giữ sau reboot. |
-
----
-
-## Troubleshooting
-```bash
-# Swap không hoạt động sau reboot?
-cat /etc/fstab  # Kiểm tra có dòng swap không
-
-# Hệ thống chậm, swap used cao?
-free -h          # Kiểm tra RAM/Swap
-top              # Xem process nào ăn RAM
-htop             # Giao diện đẹp hơn top
-
-# Xóa swap nhưng vẫn hiển thị?
-swapoff -a       # Tắt tất cả swap
-swapon --show    # Kiểm tra lại
-```
 
 # Partitioning
 ## Quy trình chuẩn bị ổ đĩa trong Linux
@@ -895,4 +601,302 @@ df -i                   # Kiểm tra IUse%
 mount -t ext4 /dev/sdb1 /mnt/test  # Chỉ định rõ filesystem type
 dmesg | tail                       # Xem kernel message
 journalctl -xe                     # Xem system log
+```
+
+---
+
+# LVM
+
+LVM cho phép quản lý ổ đĩa linh hoạt hơn phân vùng truyền thống.
+
+**Cấu trúc 3 tầng**:
+```
+Physical Volumes (PV) → Volume Groups (VG) → Logical Volumes (LV)
+      ổ cứng vật lý          nhóm ổ cứng           phân vùng logic
+```
+
+**Ví dụ thực tế**:
+- **PV**: `/dev/sda1`, `/dev/sdb1` (các phân vùng vật lý)
+- **VG**: `vg_data` (gộp sda1 + sdb1 thành 1 nhóm)
+- **LV**: `lv_home`, `lv_var` (chia VG thành các phân vùng logic)
+
+**Lợi ích**:
+- ✅ Mở rộng/thu nhỏ phân vùng dễ dàng (không cần reboot)
+- ✅ Gộp nhiều ổ cứng thành một
+- ✅ Snapshot để backup
+- ✅ Di chuyển dữ liệu giữa các ổ đĩa
+
+---
+
+## LVM Commands - Physical Volumes (PV)
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `pvdisplay` | Hiển thị chi tiết PV | **PV Name**: tên thiết bị (vd: `/dev/sda1`).<br>**VG Name**: PV này thuộc VG nào.<br>**PV Size**: dung lượng tổng.<br>**PE Size**: kích thước 1 đơn vị cơ bản (mặc định 4MB).<br>**Free PE**: số đơn vị còn trống. |
+| `pvs` | Liệt kê PV ngắn gọn | **PV**: tên PV.<br>**VG**: thuộc VG nào.<br>**Fmt**: định dạng (lvm2).<br>**Attr**: thuộc tính (`a` = allocatable).<br>**PSize / PFree**: tổng dung lượng / còn trống. |
+| `pvcreate /dev/sdX` | Tạo PV mới | Ví dụ: `pvcreate /dev/sdb1`<br>**Lưu ý**: phân vùng phải được tạo trước bằng `fdisk` hoặc `parted`. |
+| `pvremove /dev/sdX` | Xóa PV | **Lưu ý**: PV phải không thuộc VG nào mới xóa được. Dùng `vgreduce` để gỡ PV ra khỏi VG trước. |
+| `pvresize /dev/sdX` | Thay đổi kích thước PV | Dùng sau khi mở rộng phân vùng vật lý. |
+
+---
+
+## LVM Commands - Volume Groups (VG)
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `vgdisplay` | Hiển thị chi tiết VG | **VG Name**: tên VG.<br>**VG Size**: tổng dung lượng.<br>**PE Size**: kích thước 1 PE (Physical Extent).<br>**Total PE / Free PE**: tổng PE / PE còn trống.<br>**VG UUID**: ID duy nhất của VG. |
+| `vgs` | Liệt kê VG ngắn gọn | **VG**: tên VG.<br>**#PV**: số PV trong VG này.<br>**#LV**: số LV đã tạo.<br>**VSize / VFree**: tổng dung lượng / còn trống. |
+| `vgcreate [vg_name] /dev/sdX /dev/sdY` | Tạo VG mới | Ví dụ: `vgcreate vg_data /dev/sdb1 /dev/sdc1`<br>Gộp nhiều PV thành một VG. |
+| `vgextend [vg_name] /dev/sdX` | Thêm PV vào VG | Ví dụ: `vgextend vg_data /dev/sdd1`<br>Mở rộng dung lượng VG. |
+| `vgreduce [vg_name] /dev/sdX` | Gỡ PV ra khỏi VG | **Lưu ý**: PV phải không chứa dữ liệu (dùng `pvmove` để di chuyển dữ liệu trước). |
+| `vgremove [vg_name]` | Xóa VG | **Lưu ý**: VG phải không chứa LV nào. Xóa hết LV trước bằng `lvremove`. |
+| `vgrename [old_name] [new_name]` | Đổi tên VG | Ví dụ: `vgrename vg_data vg_storage` |
+
+---
+
+## LVM Commands - Logical Volumes (LV)
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `lvdisplay` | Hiển thị chi tiết LV | **LV Path**: đường dẫn đầy đủ (vd: `/dev/vg_data/lv_home`).<br>**LV Name**: tên LV.<br>**VG Name**: thuộc VG nào.<br>**LV Size**: dung lượng LV.<br>**LV Status**: `available` hoặc `NOT available`. |
+| `lvs` | Liệt kê LV ngắn gọn | **LV**: tên LV.<br>**VG**: thuộc VG nào.<br>**Attr**: thuộc tính (`-wi-ao--` = writable, active, open).<br>**LSize**: dung lượng. |
+| `lvcreate -L [size] -n [lv_name] [vg_name]` | Tạo LV mới | Ví dụ: `lvcreate -L 20G -n lv_home vg_data`<br>Tạo LV 20GB tên `lv_home` trong VG `vg_data`. |
+| `lvcreate -l 100%FREE -n [lv_name] [vg_name]` | Tạo LV dùng hết dung lượng VG | Ví dụ: `lvcreate -l 100%FREE -n lv_storage vg_data`<br>Dùng toàn bộ dung lượng còn trống. |
+| `lvextend -L +[size] /dev/[vg]/[lv]` | Mở rộng LV | Ví dụ: `lvextend -L +10G /dev/vg_data/lv_home`<br>Thêm 10GB vào LV.<br>**Lưu ý**: sau đó phải resize filesystem bằng `resize2fs` (ext4) hoặc `xfs_growfs` (xfs). |
+| `lvreduce -L -[size] /dev/[vg]/[lv]` | Thu nhỏ LV | Ví dụ: `lvreduce -L -5G /dev/vg_data/lv_home`<br>**NGUY HIỂM**: phải unmount và resize filesystem trước, nếu không sẽ mất dữ liệu. |
+| `lvremove /dev/[vg]/[lv]` | Xóa LV | Ví dụ: `lvremove /dev/vg_data/lv_home`<br>**Lưu ý**: phải unmount trước. Dữ liệu sẽ mất hoàn toàn. |
+| `lvrename [vg_name] [old_lv] [new_lv]` | Đổi tên LV | Ví dụ: `lvrename vg_data lv_old lv_new` |
+
+---
+
+## LVM - Workflow thực tế
+
+### Tạo LVM từ đầu
+```bash
+# 1. Tạo phân vùng trên ổ cứng (dùng fdisk hoặc parted)
+fdisk /dev/sdb
+# Tạo phân vùng mới, chọn type 8e (Linux LVM)
+
+# 2. Tạo Physical Volume
+pvcreate /dev/sdb1
+
+# 3. Tạo Volume Group
+vgcreate vg_data /dev/sdb1
+
+# 4. Tạo Logical Volume
+lvcreate -L 50G -n lv_home vg_data
+
+# 5. Tạo filesystem
+mkfs.ext4 /dev/vg_data/lv_home
+
+# 6. Mount
+mkdir /home_backup
+mount /dev/vg_data/lv_home /home_backup
+
+# 7. Tự động mount khi boot (thêm vào /etc/fstab)
+echo "/dev/vg_data/lv_home /home_backup ext4 defaults 0 0" >> /etc/fstab
+```
+
+### Mở rộng LV khi hết chỗ
+```bash
+# 1. Kiểm tra dung lượng còn trống trong VG
+vgs
+
+# 2. Mở rộng LV
+lvextend -L +20G /dev/vg_data/lv_home
+
+# 3. Mở rộng filesystem (không cần unmount với ext4/xfs)
+# Với ext4:
+resize2fs /dev/vg_data/lv_home
+# Với xfs:
+xfs_growfs /home_backup
+
+# 4. Kiểm tra
+df -h
+```
+
+### Thêm ổ cứng mới vào VG
+```bash
+# 1. Tạo PV từ ổ mới
+pvcreate /dev/sdc1
+
+# 2. Thêm vào VG
+vgextend vg_data /dev/sdc1
+
+# 3. Kiểm tra
+vgs
+pvs
+```
+
+---
+
+## LVM Snapshot (Bonus)
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `lvcreate -L [size] -s -n [snap_name] /dev/[vg]/[lv]` | Tạo snapshot | Ví dụ: `lvcreate -L 5G -s -n lv_home_snap /dev/vg_data/lv_home`<br>Tạo snapshot 5GB của `lv_home`.<br>**Dùng để**: backup trước khi update hệ thống. |
+| `lvconvert --merge /dev/[vg]/[snap_name]` | Restore từ snapshot | Ví dụ: `lvconvert --merge /dev/vg_data/lv_home_snap`<br>**Lưu ý**: phải unmount LV gốc trước. Snapshot sẽ bị xóa sau khi merge. |
+| `lvremove /dev/[vg]/[snap_name]` | Xóa snapshot | Snapshot cũng chiếm dung lượng, nên xóa khi không cần. |
+
+---
+
+## Troubleshooting
+```bash
+
+# LV không mount được?
+lvchange -ay /dev/vg_data/lv_home  # Kích hoạt LV
+mount /dev/vg_data/lv_home /mnt    # Mount thử
+
+# VG không nhận diện được?
+vgscan           # Quét lại VG
+vgchange -ay     # Kích hoạt tất cả VG
+# SWAP
+
+```
+
+---
+
+# SWAP
+
+**Swap** là vùng trên ổ cứng dùng làm RAM ảo khi RAM thật đầy.
+
+**Khi nào dùng Swap?**
+- RAM < 2GB → Swap = 2 × RAM
+- RAM 2-8GB → Swap = RAM
+- RAM > 8GB → Swap = 4-8GB (hoặc không cần)
+
+**Loại Swap**:
+- **Swap Partition**: phân vùng riêng (khuyên dùng)
+- **Swap File**: file trong filesystem (linh hoạt hơn)
+
+---
+
+## Swap Commands - Swap Partition
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `swapon --show` | Hiển thị swap đang active | **NAME**: tên swap device.<br>**TYPE**: partition hoặc file.<br>**SIZE**: dung lượng.<br>**USED**: đã dùng bao nhiêu.<br>**PRIO**: độ ưu tiên (-2 đến 32767, cao hơn = ưu tiên hơn). |
+| `free -h` | Xem tổng RAM và Swap | **Swap**: dòng swap cho biết total/used/free.<br>**Lưu ý**: nếu swap used cao (~80%) thì hệ thống đang thiếu RAM. |
+| `mkswap /dev/sdX` | Tạo swap trên phân vùng | Ví dụ: `mkswap /dev/sdb2`<br>**Lưu ý**: phân vùng type phải là 82 (Linux swap) trong fdisk. |
+| `swapon /dev/sdX` | Kích hoạt swap | Ví dụ: `swapon /dev/sdb2`<br>Swap sẽ mất sau khi reboot nếu không thêm vào `/etc/fstab`. |
+| `swapoff /dev/sdX` | Tắt swap | Ví dụ: `swapoff /dev/sdb2`<br>**Lưu ý**: RAM phải đủ để chứa dữ liệu từ swap, nếu không hệ thống sẽ crash. |
+| `swapon -a` | Kích hoạt tất cả swap trong `/etc/fstab` | Dùng sau khi sửa `/etc/fstab` để test. |
+
+---
+
+## Swap Commands - Swap File
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `dd if=/dev/zero of=/swapfile bs=1M count=[size_MB]` | Tạo swap file | Ví dụ: `dd if=/dev/zero of=/swapfile bs=1M count=2048`<br>Tạo file swap 2GB. |
+| `fallocate -l [size]G /swapfile` | Tạo swap file nhanh hơn | Ví dụ: `fallocate -l 2G /swapfile`<br>Nhanh hơn `dd` nhưng không hỗ trợ trên một số filesystem. |
+| `chmod 600 /swapfile` | Đặt quyền cho swap file | **BẮT BUỘC** vì lý do bảo mật (chỉ root đọc/ghi). |
+| `mkswap /swapfile` | Format swap file | Biến file thường thành swap. |
+| `swapon /swapfile` | Kích hoạt swap file | Sau đó thêm vào `/etc/fstab` để tự động mount:<br>`/swapfile none swap sw 0 0` |
+
+---
+
+## Swap - Workflow thực tế
+
+### Tạo Swap Partition
+```bash
+# 1. Tạo phân vùng swap bằng fdisk
+fdisk /dev/sdb
+# n → tạo phân vùng mới
+# t → đổi type thành 82 (Linux swap)
+# w → lưu
+
+# 2. Tạo swap
+mkswap /dev/sdb2
+
+# 3. Kích hoạt swap
+swapon /dev/sdb2
+
+# 4. Kiểm tra
+swapon --show
+free -h
+
+# 5. Tự động mount khi boot
+echo "/dev/sdb2 none swap sw 0 0" >> /etc/fstab
+```
+
+### Tạo Swap File (khuyên dùng vì linh hoạt)
+```bash
+# 1. Tạo file 2GB
+fallocate -l 2G /swapfile
+
+# 2. Đặt quyền
+chmod 600 /swapfile
+
+# 3. Format swap
+mkswap /swapfile
+
+# 4. Kích hoạt
+swapon /swapfile
+
+# 5. Kiểm tra
+swapon --show
+free -h
+
+# 6. Tự động mount khi boot
+echo "/swapfile none swap sw 0 0" >> /etc/fstab
+```
+
+### Tăng kích thước Swap File
+```bash
+# 1. Tắt swap
+swapoff /swapfile
+
+# 2. Xóa file cũ
+rm /swapfile
+
+# 3. Tạo file mới lớn hơn
+fallocate -l 4G /swapfile
+
+# 4. Đặt quyền và format
+chmod 600 /swapfile
+mkswap /swapfile
+
+# 5. Kích hoạt lại
+swapon /swapfile
+```
+
+### Xóa Swap
+```bash
+# 1. Tắt swap
+swapoff /swapfile
+
+# 2. Xóa dòng trong /etc/fstab
+vim /etc/fstab
+# Xóa dòng: /swapfile none swap sw 0 0
+
+# 3. Xóa file
+rm /swapfile
+```
+
+---
+
+## Swappiness - Điều chỉnh mức độ dùng Swap
+
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `cat /proc/sys/vm/swappiness` | Xem giá trị swappiness hiện tại | **Giá trị**: 0-100<br>**0**: chỉ dùng swap khi RAM cạn kiệt.<br>**10**: ưu tiên RAM, ít dùng swap (khuyên dùng cho server).<br>**60**: mặc định, cân bằng.<br>**100**: ưu tiên dùng swap (chậm). |
+| `sysctl vm.swappiness=[value]` | Đặt swappiness tạm thời | Ví dụ: `sysctl vm.swappiness=10`<br>**Lưu ý**: mất sau khi reboot. |
+| `echo "vm.swappiness=10" >> /etc/sysctl.conf` | Đặt swappiness vĩnh viễn | Thêm vào file cấu hình để giữ sau reboot. |
+
+---
+
+## Troubleshooting
+```bash
+# Swap không hoạt động sau reboot?
+cat /etc/fstab  # Kiểm tra có dòng swap không
+
+# Hệ thống chậm, swap used cao?
+free -h          # Kiểm tra RAM/Swap
+top              # Xem process nào ăn RAM
+htop             # Giao diện đẹp hơn top
+
+# Xóa swap nhưng vẫn hiển thị?
+swapoff -a       # Tắt tất cả swap
+swapon --show    # Kiểm tra lại
 ```
