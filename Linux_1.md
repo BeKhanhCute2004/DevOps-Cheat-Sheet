@@ -12,7 +12,7 @@
 
 [Phân vùng ổ đĩa](#partitioning)
 
-[Định dạng file](#filesystem-files)
+[Định dạng file](#filesystem-types)
 
 [LVM (Logical Volume Manager)](#lvm)
 
