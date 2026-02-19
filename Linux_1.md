@@ -247,8 +247,8 @@ Disk usage commands provide insight into disk space status. You can use the `df`
 
 | Loại | Mô tả | Số thứ tự |
 |------|-------|-----------|
-| **Primary** (Chính) | Phân vùng độc lập, tối đa 4 phân vùng (giới hạn MBR) | 1-4 |
-| **Extended** (Mở rộng) | Container chứa các phân vùng logic, chỉ có 1 trên mỗi ổ | Tính vào 1 trong 4 primary |
+| **Primary** (Chính) | Phân vùng độc lập, tối đa 4 phân vùng (chỉ giới hạn trên MBR) | 1-4 |
+| **Extended** (Mở rộng) | Container chứa các phân vùng logic, chỉ có 1 trên mỗi ổ (chỉ có trên MBR, không có trên GPT) | Tính vào 1 trong 4 primary |
 | **Logical** (Logic) | Phân vùng trong Extended, dùng khi cần >4 phân vùng | Từ 5 trở đi |
 | **Swap** | Phân vùng bộ nhớ ảo hỗ trợ RAM | Bất kỳ |
 
