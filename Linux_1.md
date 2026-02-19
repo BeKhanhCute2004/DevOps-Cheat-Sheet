@@ -10,7 +10,10 @@
 
 [Disk Usage Commands](#disk-usage-commands)
 
-[LVM (Logical Volume Manager)](#lvm-(logical-volume-manager))
+[LVM (Logical Volume Manager)](#lvm)
+
+[SWAP](#swap)
+
 
 # Hardware Information Commands
 
@@ -211,7 +214,7 @@ Disk usage commands provide insight into disk space status. You can use the `df`
 | `mount [device_path] [mount_point]` | Mount a device | Ví dụ: `mount /dev/sdb1 /mnt/usb`<br>**Lưu ý 1**: thư mục mount point phải tồn tại trước (`mkdir /mnt/usb`).<br>**Lưu ý 2**: thêm `-t [fstype]` nếu muốn chỉ định loại filesystem (vd: `-t ext4`, `-t vfat`).<br>**Lưu ý 3**: mount thủ công sẽ mất sau khi reboot — thêm vào `/etc/fstab` để mount tự động. |
 | `umount [device_path]` | Unmount a device | Ví dụ: `umount /dev/sdb1` hoặc `umount /mnt/usb`<br>**Lưu ý 1**: không thể umount nếu có process đang dùng — dùng `lsof [mount_point]` để tìm process đó.<br>**Lưu ý 2**: luôn umount trước khi rút thiết bị để tránh mất dữ liệu. |
 
-# LVM (Logical Volume Manager)
+# LVM
 
 LVM cho phép quản lý ổ đĩa linh hoạt hơn phân vùng truyền thống.
 
@@ -359,6 +362,21 @@ vgchange -ay     # Kích hoạt tất cả VG
 # SWAP
 
 ```
+
+---
+
+# SWAP
+
+**Swap** là vùng trên ổ cứng dùng làm RAM ảo khi RAM thật đầy.
+
+**Khi nào dùng Swap?**
+- RAM < 2GB → Swap = 2 × RAM
+- RAM 2-8GB → Swap = RAM
+- RAM > 8GB → Swap = 4-8GB (hoặc không cần)
+
+**Loại Swap**:
+- **Swap Partition**: phân vùng riêng (khuyên dùng)
+- **Swap File**: file trong filesystem (linh hoạt hơn)
 
 ---
 
