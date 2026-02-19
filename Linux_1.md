@@ -10,6 +10,8 @@
 
 [Disk Usage Commands](#disk-usage-commands)
 
+[LVM (Logical Volume Manager)](#lvm-(logical-volume-manager))
+
 # Hardware Information Commands
 
 | Command | Description | How to Read/Use |
@@ -209,9 +211,7 @@ Disk usage commands provide insight into disk space status. You can use the `df`
 | `mount [device_path] [mount_point]` | Mount a device | Ví dụ: `mount /dev/sdb1 /mnt/usb`<br>**Lưu ý 1**: thư mục mount point phải tồn tại trước (`mkdir /mnt/usb`).<br>**Lưu ý 2**: thêm `-t [fstype]` nếu muốn chỉ định loại filesystem (vd: `-t ext4`, `-t vfat`).<br>**Lưu ý 3**: mount thủ công sẽ mất sau khi reboot — thêm vào `/etc/fstab` để mount tự động. |
 | `umount [device_path]` | Unmount a device | Ví dụ: `umount /dev/sdb1` hoặc `umount /mnt/usb`<br>**Lưu ý 1**: không thể umount nếu có process đang dùng — dùng `lsof [mount_point]` để tìm process đó.<br>**Lưu ý 2**: luôn umount trước khi rút thiết bị để tránh mất dữ liệu. |
 
-# LVM & Swap Cheatsheet
-
-## LVM (Logical Volume Manager) - Khái niệm
+# LVM (Logical Volume Manager)
 
 LVM cho phép quản lý ổ đĩa linh hoạt hơn phân vùng truyền thống.
 
@@ -336,18 +336,29 @@ pvs
 
 ---
 
-## SWAP - Khái niệm
+## LVM Snapshot (Bonus)
 
-**Swap** là vùng trên ổ cứng dùng làm RAM ảo khi RAM thật đầy.
+| Command | Description | How to Read/Use |
+|---------|-------------|-----------------|
+| `lvcreate -L [size] -s -n [snap_name] /dev/[vg]/[lv]` | Tạo snapshot | Ví dụ: `lvcreate -L 5G -s -n lv_home_snap /dev/vg_data/lv_home`<br>Tạo snapshot 5GB của `lv_home`.<br>**Dùng để**: backup trước khi update hệ thống. |
+| `lvconvert --merge /dev/[vg]/[snap_name]` | Restore từ snapshot | Ví dụ: `lvconvert --merge /dev/vg_data/lv_home_snap`<br>**Lưu ý**: phải unmount LV gốc trước. Snapshot sẽ bị xóa sau khi merge. |
+| `lvremove /dev/[vg]/[snap_name]` | Xóa snapshot | Snapshot cũng chiếm dung lượng, nên xóa khi không cần. |
 
-**Khi nào dùng Swap?**
-- RAM < 2GB → Swap = 2 × RAM
-- RAM 2-8GB → Swap = RAM
-- RAM > 8GB → Swap = 4-8GB (hoặc không cần)
+---
 
-**Loại Swap**:
-- **Swap Partition**: phân vùng riêng (khuyên dùng)
-- **Swap File**: file trong filesystem (linh hoạt hơn)
+## Troubleshooting
+```bash
+
+# LV không mount được?
+lvchange -ay /dev/vg_data/lv_home  # Kích hoạt LV
+mount /dev/vg_data/lv_home /mnt    # Mount thử
+
+# VG không nhận diện được?
+vgscan           # Quét lại VG
+vgchange -ay     # Kích hoạt tất cả VG
+# SWAP
+
+```
 
 ---
 
@@ -456,16 +467,6 @@ rm /swapfile
 
 ---
 
-## LVM Snapshot (Bonus)
-
-| Command | Description | How to Read/Use |
-|---------|-------------|-----------------|
-| `lvcreate -L [size] -s -n [snap_name] /dev/[vg]/[lv]` | Tạo snapshot | Ví dụ: `lvcreate -L 5G -s -n lv_home_snap /dev/vg_data/lv_home`<br>Tạo snapshot 5GB của `lv_home`.<br>**Dùng để**: backup trước khi update hệ thống. |
-| `lvconvert --merge /dev/[vg]/[snap_name]` | Restore từ snapshot | Ví dụ: `lvconvert --merge /dev/vg_data/lv_home_snap`<br>**Lưu ý**: phải unmount LV gốc trước. Snapshot sẽ bị xóa sau khi merge. |
-| `lvremove /dev/[vg]/[snap_name]` | Xóa snapshot | Snapshot cũng chiếm dung lượng, nên xóa khi không cần. |
-
----
-
 ## Swappiness - Điều chỉnh mức độ dùng Swap
 
 | Command | Description | How to Read/Use |
@@ -480,14 +481,6 @@ rm /swapfile
 ```bash
 # Swap không hoạt động sau reboot?
 cat /etc/fstab  # Kiểm tra có dòng swap không
-
-# LV không mount được?
-lvchange -ay /dev/vg_data/lv_home  # Kích hoạt LV
-mount /dev/vg_data/lv_home /mnt    # Mount thử
-
-# VG không nhận diện được?
-vgscan           # Quét lại VG
-vgchange -ay     # Kích hoạt tất cả VG
 
 # Hệ thống chậm, swap used cao?
 free -h          # Kiểm tra RAM/Swap
