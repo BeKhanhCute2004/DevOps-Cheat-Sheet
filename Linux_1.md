@@ -1,14 +1,14 @@
 # Mục lục
 
-[Hardware Information Commands](#hardware-information-commands)  
+[Xem thông tin phần cứng cơ bản](#hardware-information-commands)  
 
-[Linux Boot Process](#linux-boot-process)
+[Quá trình boot Linux](#linux-boot-process)
 
-[Compare Sysvinit Upstart and Systemd](#sysvinit-upstart-and-systemd)
+[So sánh Sysvinit Upstart và Systemd](#sysvinit-upstart-and-systemd)
 
-[Systemd Utilize](#systemd)
+[Cách dùng Systemd](#systemd)
 
-[Disk Usage Commands](#disk-usage-commands)
+[Thông tin ổ đĩa và Mount](#disk-usage-commands)
 
 [LVM (Logical Volume Manager)](#lvm)
 
