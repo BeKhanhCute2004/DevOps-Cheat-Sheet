@@ -662,8 +662,8 @@ Physical Volumes (PV) → Volume Groups (VG) → Logical Volumes (LV)
 | `lvs` | Liệt kê LV ngắn gọn | **LV**: tên LV.<br>**VG**: thuộc VG nào.<br>**Attr**: thuộc tính (`-wi-ao--` = writable, active, open).<br>**LSize**: dung lượng. |
 | `lvcreate -L [size] -n [lv_name] [vg_name]` | Tạo LV mới | Ví dụ: `lvcreate -L 20G -n lv_home vg_data`<br>Tạo LV 20GB tên `lv_home` trong VG `vg_data`. |
 | `lvcreate -l 100%FREE -n [lv_name] [vg_name]` | Tạo LV dùng hết dung lượng VG | Ví dụ: `lvcreate -l 100%FREE -n lv_storage vg_data`<br>Dùng toàn bộ dung lượng còn trống. |
-| `lvextend -L +[size] /dev/[vg]/[lv]` | Mở rộng LV | Ví dụ: `lvextend -L +10G /dev/vg_data/lv_home`<br>Thêm 10GB vào LV.<br>**Lưu ý**: sau đó phải resize filesystem bằng `resize2fs` (ext4) hoặc `xfs_growfs` (xfs). |
-| `lvreduce -L -[size] /dev/[vg]/[lv]` | Thu nhỏ LV | Ví dụ: `lvreduce -L -5G /dev/vg_data/lv_home`<br>**NGUY HIỂM**: phải unmount và resize filesystem trước, nếu không sẽ mất dữ liệu. |
+| `lvextend -L +[size] /dev/[vg]/[lv]` | Mở rộng LV | Ví dụ: `lvextend -L +10G /dev/vg_data/lv_home`<br>Thêm 10GB vào LV.<br>**Lưu ý**: sau đó phải resize filesystem bằng `resize2fs` (ext4) hoặc `xfs_growfs` (xfs).<br> Có thể gộp extend và resize thành `lvextend -r -L +[size] /dev/[vg]/[lv]` |
+| `lvreduce -L -[size] /dev/[vg]/[lv]` | Thu nhỏ LV | Ví dụ: `lvreduce -L -5G /dev/vg_data/lv_home`<br>**NGUY HIỂM**: phải unmount và resize filesystem trước, nếu không sẽ mất dữ liệu.<br> VD: `resize2fs /dev/vg_data/lv-home 15G` (để thu hẹp lại còn 15G)<br> Có thể gộp extend và resize thành `lvreduce -r -L +[size] /dev/[vg]/[lv]` |
 | `lvremove /dev/[vg]/[lv]` | Xóa LV | Ví dụ: `lvremove /dev/vg_data/lv_home`<br>**Lưu ý**: phải unmount trước. Dữ liệu sẽ mất hoàn toàn. |
 | `lvrename [vg_name] [old_lv] [new_lv]` | Đổi tên LV | Ví dụ: `lvrename vg_data lv_old lv_new` |
 
