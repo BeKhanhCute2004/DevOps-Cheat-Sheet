@@ -1114,15 +1114,42 @@ grub2-mkconfig -o /boot/grub2/grub.cfg
 # Tìm dòng bắt đầu với 'linux16' hoặc 'linux'
 # Thêm vào cuối dòng:
 rd.break enforcing=0
+#       rd.break: dừng quá trình boot ở giai đoạn Initramfs (Initial RAM Filesystem) = Hệ thống file tạm thời trong RAM
+#       - Tại thời điểm này, hệ thống **chưa yêu cầu password**
+#       - Bạn được vào **emergency shell** (shell cấp cứu) với quyền root
+#       - Ổ cứng thật đã được mount vào `/sysroot` nhưng **chỉ ở chế độ read-only**
+#       enforcing=0: Tắt SELinux ở chế độ enforcing, chỉ để warning
+#       - Security-Enhanced Linux = Hệ thống bảo mật bổ sung
+#       - Có 3 chế độ: enforcing (Chặn mọi hành động vi phạm policy), permissive (Chỉ cảnh báo, không chặn), disabled (Tắt hoàn toàn)
+#       Khi bạn đổi password → File /etc/shadow thay đổi → SELinux context (nhãn bảo mật) của file bị sai → Lần boot sau, SELinux sẽ CHẶN đăng nhập → Bạn lại bị khóa ngoài!
+
 
 # Nhấn Ctrl+X để boot
 # Khi vào emergency shell:
 mount -o remount,rw /sysroot
+#       /sysroot: Thư mục tạm trong initramfs, chứa ổ cứng thật của bạn đã được mount.
+#       Initramfs (filesystem tạm trong RAM)
+#             ├── /bin
+#             ├── /sbin
+#             ├── /sysroot  ← Ổ cứng thật được mount VÀO ĐÂY
+#             │    ├── /bin
+#             │    ├── /etc
+#             │    ├── /home
+#             │    ├── /root
+#             │    └── ...
+#             └── ...
+#       Nếu bạn chạy passwd root lúc này:
+#       - Lệnh passwd sẽ tìm file /etc/shadow
+#       - Nhưng /etc/shadow trong initramfs KHÔNG PHẢI file thật
+#       - File thật là /sysroot/etc/shadow
+
+# Phải chuyển thư mục root từ /sysroot về /
 chroot /sysroot
 passwd root
-touch /.autorelabel
-exit
-exit
+# Do SELinux không hoạt động lúc này, file /etc/shadow sau khi bị ghi đè sẽ bị mất nhãn bảo mật hoặc mang một cái nhãn sai (nhãn của môi trường cứu hộ).
+touch /.autorelabel # ← tạo một file .autolabel để khi khởi động máy yêu cầu SELinux gán nhãn lại toàn bộ hệ thống
+exit # ← Thoát khỏi chroot
+exit # ← Thoát khỏi emergency shell
 ```
 
 ### 2. Thay đổi timeout menu
