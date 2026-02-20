@@ -18,6 +18,8 @@
 
 [SWAP](#swap)
 
+[GRUB](#grub)
+
 
 # Hardware Information Commands
 
@@ -900,3 +902,342 @@ htop             # Giao diện đẹp hơn top
 swapoff -a       # Tắt tất cả swap
 swapon --show    # Kiểm tra lại
 ```
+
+# GRUB
+
+## GRUB là gì?
+
+**GRUB** (Grand Unified Boot Loader) = Trình quản lý khởi động Linux, hiển thị menu chọn hệ điều hành khi máy tính bật.
+
+**Có 2 phiên bản**:
+- **GRUB Legacy** (cũ) - CentOS 5, RHEL 5 trở về trước
+- **GRUB2** (mới) - Hầu hết distro hiện đại (Ubuntu, CentOS 7+, Fedora...)
+
+---
+
+## So sánh GRUB Legacy vs GRUB2
+
+| Tiêu chí | GRUB Legacy | GRUB2 |
+|----------|-------------|-------|
+| **File cấu hình chính** | `/boot/grub/menu.lst` hoặc<br>`/boot/grub/grub.conf` | `/boot/grub2/grub.cfg` |
+| **Cách sửa cấu hình** | Sửa trực tiếp file menu.lst | **KHÔNG** sửa grub.cfg trực tiếp<br>→ Sửa `/etc/default/grub` + chạy lệnh tạo lại |
+| **Tạo lại cấu hình** | Không cần (sửa trực tiếp) | `grub2-mkconfig -o /boot/grub2/grub.cfg` |
+| **Cài đặt GRUB** | `grub-install /dev/sda` | `grub2-install /dev/sda` |
+| **Độ phức tạp** | Đơn giản, dễ hiểu | Phức tạp hơn, tự động hơn |
+
+---
+
+## GRUB Legacy (Phiên bản cũ)
+
+### Cấu trúc thư mục
+```
+/boot/
+├── grub/
+│   ├── menu.lst (hoặc grub.conf)  ← File cấu hình chính
+│   ├── stage1                      ← Giai đoạn boot 1
+│   └── stage2                      ← Giai đoạn boot 2
+├── vmlinuz-X.X.X                   ← Kernel
+├── initrd-X.X.X.img                ← Initial RAM disk
+└── System.map-X.X.X                ← Symbol map
+```
+
+### File cấu hình: `/boot/grub/menu.lst`
+```bash
+# Cấu hình chung
+default=0        # Chọn mục menu thứ 0 (đầu tiên) làm mặc định
+timeout=10       # Chờ 10 giây trước khi tự động boot
+
+# Mục menu thứ nhất (CentOS)
+title CentOS (2.6.32-71.el6.x86_64)
+    root (hd0,0)                                    # ổ đĩa 0, phân vùng 0
+    kernel /boot/vmlinuz-2.6.32 root=LABEL=/ ro    # Đường dẫn kernel
+    initrd /boot/initrd-2.6.32.img                 # Initial ramdisk
+
+# Mục menu thứ hai (Windows)
+title Windows 10
+    rootnoverify (hd0,1)
+    chainloader +1
+```
+
+**Giải thích các dòng**:
+
+| Dòng | Ý nghĩa |
+|------|---------|
+| `default=0` | Boot mục menu đầu tiên (đếm từ 0) |
+| `timeout=10` | Hiển thị menu 10 giây, sau đó tự động boot |
+| `title [tên]` | Tên hiển thị trên menu |
+| `root (hd0,0)` | **hd0** = ổ cứng đầu tiên, **0** = phân vùng đầu tiên<br>(⚠️ Đếm từ 0, khác với Linux `/dev/sda1`) |
+| `kernel /boot/vmlinuz...` | Đường dẫn đến kernel |
+| `root=LABEL=/` | Phân vùng root có label `/` |
+| `ro` | Mount root ở chế độ read-only ban đầu |
+| `initrd /boot/initrd...` | Đường dẫn đến initial ramdisk |
+
+**Cách đánh số ổ đĩa trong GRUB Legacy**:
+
+| GRUB Legacy | Linux | Giải thích |
+|-------------|-------|------------|
+| `(hd0,0)` | `/dev/sda1` | Ổ đầu tiên, phân vùng đầu tiên |
+| `(hd0,1)` | `/dev/sda2` | Ổ đầu tiên, phân vùng thứ hai |
+| `(hd1,0)` | `/dev/sdb1` | Ổ thứ hai, phân vùng đầu tiên |
+
+### Lệnh GRUB Legacy
+
+| Lệnh | Mô tả | Ví dụ |
+|------|-------|-------|
+| `grub-install [device]` | Cài đặt GRUB vào MBR | `grub-install /dev/sda` |
+| `grub` | Vào GRUB shell để test | `grub`<br>`> root (hd0,0)`<br>`> setup (hd0)` |
+
+### Sửa menu boot tạm thời (Khi đang boot)
+
+1. Khi menu GRUB hiện ra, nhấn **`e`** trên mục muốn sửa
+2. Chỉnh sửa dòng `kernel` hoặc `initrd`
+3. Nhấn **`b`** để boot với thay đổi tạm thời
+4. Hoặc nhấn **`c`** để vào GRUB command line
+
+---
+
+## GRUB2 (Phiên bản mới) - **Khuyên học phần này**
+
+### Cấu trúc thư mục
+```
+/boot/
+├── grub2/
+│   ├── grub.cfg              ← File menu (TỰ ĐỘNG TẠO, KHÔNG SỬA TRỰC TIẾP)
+│   ├── fonts/                ← Font chữ cho menu
+│   ├── themes/               ← Giao diện menu
+│   └── efi/                  ← UEFI boot files
+├── vmlinuz-X.X.X             ← Kernel
+├── initramfs-X.X.X.img       ← Initial RAM filesystem
+└── System.map-X.X.X
+
+/etc/
+├── default/
+│   └── grub                  ← **SỬA FILE NÀY** để thay đổi GRUB
+└── grub.d/
+    ├── 00_header
+    ├── 10_linux              ← Tự động tìm kernel Linux
+    ├── 30_os-prober          ← Tự động tìm Windows/OS khác
+    └── 40_custom             ← Thêm mục menu tùy chỉnh
+```
+
+### File cấu hình: `/etc/default/grub` - **Quan trọng nhất**
+```bash
+GRUB_TIMEOUT=5                          # Chờ 5 giây
+GRUB_DEFAULT=0                          # Boot mục đầu tiên
+GRUB_DISABLE_SUBMENU=true               # Không dùng submenu
+GRUB_TIMEOUT_STYLE=menu                 # Hiển thị menu (hoặc hidden)
+GRUB_CMDLINE_LINUX="crashkernel=auto"   # Tùy chọn kernel
+GRUB_DISABLE_RECOVERY="true"            # Ẩn chế độ recovery
+```
+
+**Các tham số quan trọng**:
+
+| Tham số | Giá trị | Ý nghĩa |
+|---------|---------|---------|
+| `GRUB_TIMEOUT` | `5` | Hiển thị menu 5 giây |
+| | `0` | Boot ngay, không hiển thị menu |
+| | `-1` | Chờ mãi mãi cho đến khi chọn |
+| `GRUB_DEFAULT` | `0` | Boot mục đầu tiên |
+| | `saved` | Nhớ lựa chọn lần trước |
+| | `"CentOS Linux"` | Boot mục có tên này |
+| `GRUB_CMDLINE_LINUX` | `"quiet splash"` | Ẩn log, hiển thị splash screen |
+| | `"text"` | Boot vào text mode (không GUI) |
+| | `"single"` | Boot vào single-user mode |
+
+### Quy trình thay đổi GRUB2 - **3 bước**
+```bash
+# Bước 1: Sửa file cấu hình
+sudo vim /etc/default/grub
+# Thay đổi GRUB_TIMEOUT=5 thành GRUB_TIMEOUT=10
+
+# Bước 2: Tạo lại file grub.cfg
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+# Trên Ubuntu/Debian:
+sudo update-grub
+
+# Bước 3: Reboot để kiểm tra
+sudo reboot
+```
+
+### Lệnh GRUB2
+
+| Lệnh | Mô tả | Ví dụ |
+|------|-------|-------|
+| `grub2-mkconfig -o [file]` | Tạo file grub.cfg từ<br>/etc/default/grub và /etc/grub.d/ | `grub2-mkconfig -o /boot/grub2/grub.cfg` |
+| `update-grub` | (Ubuntu/Debian)<br>Tương đương grub2-mkconfig | `update-grub` |
+| `grub2-install [device]` | Cài đặt GRUB2 vào MBR | `grub2-install /dev/sda` |
+| `grub2-set-default [number]` | Đặt mục menu mặc định | `grub2-set-default 0` |
+| `grub2-editenv list` | Xem biến môi trường GRUB | `grub2-editenv list` |
+
+### Thêm mục menu tùy chỉnh
+
+**File**: `/etc/grub.d/40_custom`
+```bash
+#!/bin/sh
+exec tail -n +3 $0
+
+# Thêm mục boot vào Windows
+menuentry "Windows 10" {
+    insmod ntfs
+    set root='(hd0,2)'
+    chainloader +1
+}
+
+# Thêm mục boot vào kernel cũ hơn
+menuentry "CentOS Linux (3.10.0-old)" {
+    linux /boot/vmlinuz-3.10.0-old root=/dev/sda1 ro
+    initrd /boot/initramfs-3.10.0-old.img
+}
+```
+
+**Sau khi sửa**:
+```bash
+chmod +x /etc/grub.d/40_custom
+grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+### Sửa menu boot tạm thời (Khi đang boot)
+
+1. Khi menu GRUB2 hiện ra, nhấn **`e`** trên mục muốn sửa
+2. Tìm dòng bắt đầu với `linux` hoặc `linux16`
+3. Thêm/sửa tham số (ví dụ: thêm `single` để vào single-user mode)
+4. Nhấn **`Ctrl+X`** hoặc **`F10`** để boot với thay đổi tạm thời
+5. Hoặc nhấn **`c`** để vào GRUB2 command line
+
+---
+
+## Các tình huống thực tế
+
+### 1. Quên mật khẩu root - Reset bằng GRUB2
+```bash
+# Trong menu GRUB, nhấn 'e' trên mục Linux
+# Tìm dòng bắt đầu với 'linux16' hoặc 'linux'
+# Thêm vào cuối dòng:
+rd.break enforcing=0
+
+# Nhấn Ctrl+X để boot
+# Khi vào emergency shell:
+mount -o remount,rw /sysroot
+chroot /sysroot
+passwd root
+touch /.autorelabel
+exit
+exit
+```
+
+### 2. Thay đổi timeout menu
+```bash
+# Sửa file
+sudo vim /etc/default/grub
+# Đổi thành:
+GRUB_TIMEOUT=10
+
+# Tạo lại grub.cfg
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+### 3. Ẩn menu GRUB (boot thẳng)
+```bash
+# Sửa file
+sudo vim /etc/default/grub
+# Đổi thành:
+GRUB_TIMEOUT=0
+GRUB_TIMEOUT_STYLE=hidden
+
+# Tạo lại grub.cfg
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+### 4. Cài lại GRUB khi bị lỗi
+```bash
+# Boot từ USB/LiveCD
+# Mount phân vùng root
+sudo mount /dev/sda1 /mnt
+sudo mount --bind /dev /mnt/dev
+sudo mount --bind /proc /mnt/proc
+sudo mount --bind /sys /mnt/sys
+
+# Chroot vào hệ thống
+sudo chroot /mnt
+
+# Cài lại GRUB
+grub2-install /dev/sda
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# Thoát và reboot
+exit
+sudo reboot
+```
+
+### 5. Dual boot với Windows
+
+GRUB2 tự động phát hiện Windows nếu cài `os-prober`:
+```bash
+# Cài os-prober
+sudo yum install os-prober      # CentOS/RHEL
+sudo apt install os-prober      # Ubuntu/Debian
+
+# Tạo lại grub.cfg
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# Windows sẽ tự động xuất hiện trong menu
+```
+
+---
+
+## Thư mục `/boot` - Chứa gì?
+
+| File/Thư mục | Mô tả |
+|--------------|-------|
+| `vmlinuz-X.X.X` | **Kernel** - Nhân Linux đã nén |
+| `initrd-X.X.X.img` (Legacy)<br>`initramfs-X.X.X.img` (GRUB2) | **Initial RAM Disk** - Filesystem tạm trong RAM để boot |
+| `System.map-X.X.X` | **Symbol Map** - Danh sách địa chỉ các hàm kernel |
+| `config-X.X.X` | **Kernel Config** - Cấu hình kernel khi compile |
+| `grub/` hoặc `grub2/` | Thư mục cấu hình GRUB |
+
+---
+
+## Troubleshooting
+
+### GRUB không hiển thị menu?
+```bash
+# Kiểm tra timeout
+grep GRUB_TIMEOUT /etc/default/grub
+
+# Nếu =0 hoặc hidden, đổi thành:
+GRUB_TIMEOUT=5
+GRUB_TIMEOUT_STYLE=menu
+
+# Tạo lại
+grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+### GRUB bị lỗi "error: file not found"?
+```bash
+# Thường do đường dẫn sai trong grub.cfg
+# Kiểm tra kernel có tồn tại không
+ls /boot/vmlinuz*
+
+# Tạo lại grub.cfg
+grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+### Dual boot mất Windows sau khi cài Linux?
+```bash
+# Cài os-prober
+sudo yum install os-prober
+
+# Tạo lại menu
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+### Lỗi "GRUB" hoặc "grub rescue>"?
+```bash
+# Boot từ LiveCD/USB
+# Mount và chroot như hướng dẫn ở trên
+# Sau đó:
+grub2-install /dev/sda
+grub2-mkconfig -o /boot/grub2/grub.cfg
+```
+
+---
