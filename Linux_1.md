@@ -1324,9 +1324,9 @@ Tổng: 12MB trên ổ cứng, 12MB trong RAM
 |---------|---------|-------|
 | `/lib/` | Thư viện hệ thống cơ bản (32-bit) | `libc.so.6`, `libm.so.6` |
 | `/lib64/` | Thư viện hệ thống cơ bản (64-bit) | `libc.so.6`, `libpthread.so.0` |
-| `/usr/lib/` | Thư viện ứng dụng (32-bit) | `libssl.so`, `libcurl.so` |
-| `/usr/lib64/` | Thư viện ứng dụng (64-bit) | `libpython3.8.so` |
-| `/usr/local/lib/` | Thư viện tự cài đặt/compile | Thư viện compile từ source |
+| `/usr/lib/` | Thư viện ứng dụng (32-bit) (apt, yum, ...) | `libssl.so`, `libcurl.so` |
+| `/usr/lib64/` | Thư viện ứng dụng (64-bit) (apt,yum, ...)| `libpython3.8.so` |
+| `/usr/local/lib/` | Thư viện tự cài đặt/compile (make install, git clone, ...)| Thư viện compile từ source |
 | `/usr/share/` | Dữ liệu chia sẻ (không phải code) | Icons, fonts, configs |
 
 **Lưu ý**: 
