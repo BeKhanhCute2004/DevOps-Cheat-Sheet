@@ -1326,7 +1326,7 @@ Tổng: 12MB
   ↓
 Kernel load program
   ↓
-Dynamic linker (ld.so) tìm + load TẤT CẢ thư viện
+Dynamic linker (ld.so) tìm + load TẤT CẢ thư viện đã khai báo lúc biên dịch (-l)
   ↓
 Link các function
   ↓
