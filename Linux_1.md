@@ -1521,7 +1521,7 @@ ldconfig -p | grep libmylib
 | Lệnh | Mô tả |
 |------|-------|
 | `ldconfig -p` | Xem tất cả thư viện trong cache |
-| `ldconfig -p | grep [lib]` | Tìm thư viện cụ thể |
+| `ldconfig -p \| grep [lib]` | Tìm thư viện cụ thể |
 | `ldconfig -v` | Verbose mode - xem chi tiết quá trình quét |
 | `ldconfig -n [dir]` | Chỉ quét thư mục cụ thể |
 
