@@ -20,6 +20,8 @@
 
 [GRUB](#grub)
 
+[Shared Library](#shared-library)
+
 
 # Hardware Information Commands
 
@@ -1268,3 +1270,579 @@ grub2-mkconfig -o /boot/grub2/grub.cfg
 ```
 
 ---
+
+# Shared Library
+
+## Shared Library là gì?
+
+**Định nghĩa**: Thư viện chia sẻ = Tập hợp các hàm/code được nhiều chương trình dùng chung, không cần nhúng vào mỗi chương trình.
+
+**Ví dụ thực tế**:
+```
+Chương trình A cần hàm "printf()"  ┐
+Chương trình B cần hàm "printf()"  ├→ Cùng dùng chung thư viện libc.so
+Chương trình C cần hàm "printf()"  ┘
+```
+
+**Đặc điểm nhận dạng**:
+- Tên file có đuôi `.so` (shared object)
+- Ví dụ: `libc.so.6`, `libssl.so.1.1`, `libpython3.8.so`
+
+---
+
+## Tại sao cần Shared Library?
+
+### Không dùng Shared Library (Static Linking)
+```
+Program A (10MB) = Code (1MB) + libc (5MB) + libssl (4MB)
+Program B (10MB) = Code (1MB) + libc (5MB) + libssl (4MB)
+Program C (10MB) = Code (1MB) + libc (5MB) + libssl (4MB)
+───────────────────────────────────────────────────────────
+Tổng: 30MB trên ổ cứng, 30MB trong RAM
+```
+
+### Dùng Shared Library (Dynamic Linking)
+```
+Program A (1MB) ─┐
+Program B (1MB) ─┼→ libc.so (5MB) + libssl.so (4MB)
+Program C (1MB) ─┘
+───────────────────────────────────────────────────────────
+Tổng: 12MB trên ổ cứng, 12MB trong RAM
+```
+
+**Lợi ích**:
+- ✅ Tiết kiệm dung lượng ổ cứng
+- ✅ Tiết kiệm RAM
+- ✅ Cập nhật thư viện 1 lần → tất cả chương trình được cập nhật
+- ✅ Sửa lỗi bảo mật thư viện dễ dàng
+
+---
+
+## Vị trí Shared Library trên Linux
+
+| Thư mục | Chứa gì | Ví dụ |
+|---------|---------|-------|
+| `/lib/` | Thư viện hệ thống cơ bản (32-bit) | `libc.so.6`, `libm.so.6` |
+| `/lib64/` | Thư viện hệ thống cơ bản (64-bit) | `libc.so.6`, `libpthread.so.0` |
+| `/usr/lib/` | Thư viện ứng dụng (32-bit) | `libssl.so`, `libcurl.so` |
+| `/usr/lib64/` | Thư viện ứng dụng (64-bit) | `libpython3.8.so` |
+| `/usr/local/lib/` | Thư viện tự cài đặt/compile | Thư viện compile từ source |
+| `/usr/share/` | Dữ liệu chia sẻ (không phải code) | Icons, fonts, configs |
+
+**Lưu ý**: 
+- `/lib/` và `/lib64/` chứa thư viện **cần thiết để boot hệ thống**
+- `/usr/lib/` chứa thư viện **cho ứng dụng người dùng**
+
+---
+
+## Symbolic Link (Liên kết mềm) trong Shared Library
+
+### Tại sao cần Symbolic Link?
+```bash
+ls -l /lib64/libc.so*
+# Output:
+lrwxrwxrwx libc.so.6 -> libc-2.17.so         ← Symlink
+-rwxr-xr-x libc-2.17.so                       ← File thật
+```
+
+**Giải thích**:
+- `libc-2.17.so` = File thật (phiên bản cụ thể)
+- `libc.so.6` = Symlink trỏ đến file thật
+- Chương trình gọi `libc.so.6` (tên chung) → tự động dùng phiên bản mới nhất
+
+**Lợi ích**:
+```
+Trước khi update:
+Program → libc.so.6 → libc-2.17.so
+
+Sau khi update (cài libc-2.28.so):
+Program → libc.so.6 → libc-2.28.so  ← Chỉ cần đổi symlink
+         (không đổi)   (file mới)
+
+→ Chương trình tự động dùng phiên bản mới mà KHÔNG CẦN biên dịch lại!
+```
+
+---
+
+## Static Linking vs Dynamic Linking
+
+### Static Linking (Liên kết tĩnh)
+
+**Cách hoạt động**: Nhúng toàn bộ thư viện vào file thực thi
+```bash
+gcc -static myapp.c -o myapp
+# myapp chứa ĐẦY ĐỦ code từ libc
+```
+
+**Ưu điểm**:
+- ✅ Chương trình độc lập, không phụ thuộc thư viện hệ thống
+- ✅ Dễ deploy (copy 1 file là xong)
+- ✅ Kiểm soát chính xác phiên bản thư viện
+
+**Nhược điểm**:
+- ❌ File thực thi rất lớn (10-50MB cho chương trình đơn giản)
+- ❌ Lãng phí RAM (mỗi chương trình giữ 1 bản copy)
+- ❌ Cập nhật thư viện = phải biên dịch lại chương trình
+
+**Khi nào dùng**: Embedded systems, containers đơn giản
+
+---
+
+### Dynamic Linking (Liên kết động) - **Phổ biến hơn**
+
+**Cách hoạt động**: Chương trình chỉ chứa "con trỏ" đến thư viện, load khi chạy
+```bash
+gcc myapp.c -o myapp
+# myapp chỉ chứa địa chỉ của libc.so
+```
+
+**Ưu điểm**:
+- ✅ File thực thi nhỏ (vài KB - vài MB)
+- ✅ Tiết kiệm RAM (nhiều chương trình dùng chung 1 bản copy trong RAM)
+- ✅ Cập nhật thư viện → tất cả chương trình được lợi
+- ✅ Sửa lỗi bảo mật nhanh
+
+**Nhược điểm**:
+- ❌ Phụ thuộc thư viện hệ thống
+- ❌ "Dependency hell" - thiếu thư viện → chương trình không chạy
+- ❌ Xung đột phiên bản
+
+**Khi nào dùng**: 99% chương trình trên Linux
+
+---
+
+## Cách Linux tìm Shared Library (ld.so)
+
+### Quy trình tìm kiếm
+```
+Khi chạy program:
+1. Kernel load program vào RAM
+2. Gọi ld.so (dynamic linker)
+3. ld.so tìm thư viện theo thứ tự:
+   a. LD_LIBRARY_PATH (biến môi trường)
+   b. /etc/ld.so.cache (cache được tạo bởi ldconfig)
+   c. /lib/, /lib64/, /usr/lib/, /usr/lib64/ (mặc định)
+4. Load thư viện vào RAM
+5. Liên kết các hàm
+6. Chạy program
+```
+
+### `ld.so` - Dynamic Linker
+
+**Định nghĩa**: Chương trình đặc biệt chịu trách nhiệm load và liên kết thư viện khi chạy chương trình.
+
+**Vị trí**:
+- 64-bit: `/lib64/ld-linux-x86-64.so.2`
+- 32-bit: `/lib/ld-linux.so.2`
+
+**Bạn có thể thấy nó khi chạy**:
+```bash
+ldd /bin/ls
+# Output:
+    linux-vdso.so.1 (0x00007ffd8a9fe000)
+    libselinux.so.1 => /lib64/libselinux.so.1
+    libc.so.6 => /lib64/libc.so.6
+    /lib64/ld-linux-x86-64.so.2  ← Dynamic linker
+```
+
+---
+
+## Lệnh quan trọng
+
+### 1. `ldd` - Kiểm tra thư viện chương trình cần
+```bash
+ldd [program]
+```
+
+**Ví dụ**:
+```bash
+ldd /bin/bash
+# Output:
+linux-vdso.so.1 (0x00007ffc123ab000)           ← Virtual DSO (kernel)
+libtinfo.so.6 => /lib64/libtinfo.so.6          ← Terminal info
+libdl.so.2 => /lib64/libdl.so.2                ← Dynamic loading
+libc.so.6 => /lib64/libc.so.6                  ← C standard library
+/lib64/ld-linux-x86-64.so.2                    ← Dynamic linker
+```
+
+**Đọc kết quả**:
+
+| Cột | Ý nghĩa |
+|-----|---------|
+| `libc.so.6` | Tên thư viện chương trình cần |
+| `=>` | "Trỏ đến" |
+| `/lib64/libc.so.6` | Đường dẫn thật của thư viện |
+| `(0x00007ffc...)` | Địa chỉ load vào RAM |
+
+**Trường hợp lỗi**:
+```bash
+ldd /opt/myapp/bin/myapp
+# Output:
+libmylib.so.1 => not found  ← THIẾU THƯ VIỆN!
+libc.so.6 => /lib64/libc.so.6
+```
+
+→ Chương trình không chạy được vì thiếu `libmylib.so.1`
+
+---
+
+### 2. `ldconfig` - Cập nhật cache thư viện
+```bash
+ldconfig
+```
+
+**Chức năng**:
+1. Quét tất cả thư mục trong `/etc/ld.so.conf`
+2. Tìm tất cả file `.so`
+3. Tạo symlink cho phiên bản mới nhất
+4. Lưu danh sách vào `/etc/ld.so.cache`
+
+**Khi nào chạy**:
+- ✅ Sau khi cài đặt thư viện mới
+- ✅ Sau khi compile thư viện từ source
+- ✅ Sau khi thêm đường dẫn vào `/etc/ld.so.conf`
+- ✅ Khi chương trình báo lỗi "cannot open shared object file"
+
+**Ví dụ**:
+```bash
+# Cài thư viện mới
+sudo cp libmylib.so.1.0 /usr/local/lib/
+
+# Cập nhật cache
+sudo ldconfig
+
+# Kiểm tra
+ldconfig -p | grep libmylib
+# Output: libmylib.so.1 (libc6,x86-64) => /usr/local/lib/libmylib.so.1.0
+```
+
+**Tùy chọn hữu ích**:
+
+| Lệnh | Mô tả |
+|------|-------|
+| `ldconfig -p` | Xem tất cả thư viện trong cache |
+| `ldconfig -p | grep [lib]` | Tìm thư viện cụ thể |
+| `ldconfig -v` | Verbose mode - xem chi tiết quá trình quét |
+| `ldconfig -n [dir]` | Chỉ quét thư mục cụ thể |
+
+---
+
+### 3. `/etc/ld.so.conf` - Cấu hình đường dẫn thư viện
+
+**File chính**: `/etc/ld.so.conf`
+
+**Nội dung điển hình**:
+```bash
+cat /etc/ld.so.conf
+# Output:
+include ld.so.conf.d/*.conf
+```
+
+→ Đọc tất cả file `.conf` trong thư mục `ld.so.conf.d/`
+
+**Xem tất cả đường dẫn**:
+```bash
+cat /etc/ld.so.conf.d/*.conf
+# Output:
+/usr/lib64/mysql
+/usr/lib64/qt5
+/usr/local/lib
+/opt/myapp/lib
+```
+
+**Thêm đường dẫn mới**:
+```bash
+# Cách 1: Tạo file mới (khuyên dùng)
+echo "/opt/myapp/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+sudo ldconfig
+
+# Cách 2: Thêm trực tiếp vào /etc/ld.so.conf (không khuyên)
+echo "/opt/myapp/lib" | sudo tee -a /etc/ld.so.conf
+sudo ldconfig
+```
+
+**Kiểm tra**:
+```bash
+ldconfig -p | grep myapp
+# Nếu thấy thư viện từ /opt/myapp/lib → Thành công!
+```
+
+---
+
+### 4. `LD_LIBRARY_PATH` - Biến môi trường
+
+**Định nghĩa**: Biến môi trường chỉ định đường dẫn thư viện **tạm thời** cho phiên làm việc hiện tại.
+
+**Cú pháp**:
+```bash
+export LD_LIBRARY_PATH=/path/to/lib1:/path/to/lib2:$LD_LIBRARY_PATH
+```
+
+**Ví dụ thực tế**:
+```bash
+# Chương trình báo lỗi thiếu thư viện
+./myapp
+# Error: libmylib.so.1: cannot open shared object file
+
+# Giải pháp tạm thời
+export LD_LIBRARY_PATH=/opt/myapp/lib:$LD_LIBRARY_PATH
+./myapp
+# Chạy thành công!
+```
+
+**Ưu điểm**:
+- ✅ Không cần quyền root
+- ✅ Không ảnh hưởng hệ thống
+- ✅ Test nhanh
+
+**Nhược điểm**:
+- ❌ Chỉ có hiệu lực trong phiên terminal hiện tại
+- ❌ Mất sau khi logout/reboot
+- ❌ Có thể gây xung đột phiên bản
+
+**Đặt vĩnh viễn** (cho user hiện tại):
+```bash
+# Thêm vào ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/opt/myapp/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Đặt vĩnh viễn** (cho toàn hệ thống):
+```bash
+# Tạo file trong /etc/profile.d/
+echo 'export LD_LIBRARY_PATH=/opt/myapp/lib:$LD_LIBRARY_PATH' | sudo tee /etc/profile.d/myapp.sh
+```
+
+---
+
+## So sánh 3 cách cấu hình đường dẫn thư viện
+
+| Phương pháp | Khi nào dùng | Ưu điểm | Nhược điểm |
+|-------------|--------------|---------|------------|
+| **`/etc/ld.so.conf`** | Cài đặt vĩnh viễn thư viện hệ thống | • Nhanh (dùng cache)<br>• Áp dụng toàn hệ thống<br>• Được ưu tiên cao | • Cần root<br>• Phải chạy `ldconfig` |
+| **`LD_LIBRARY_PATH`** | Test tạm thời, không có quyền root | • Không cần root<br>• Test nhanh<br>• Không ảnh hưởng hệ thống | • Chỉ trong phiên hiện tại<br>• Override thư viện hệ thống (nguy hiểm) |
+| **Hardcode trong program** | Chương trình tự động tìm | • Không cần cấu hình | • Phải biên dịch lại<br>• Không linh hoạt |
+
+**Thứ tự ưu tiên tìm kiếm**:
+```
+1. LD_LIBRARY_PATH (cao nhất - nguy hiểm)
+2. /etc/ld.so.cache
+3. /lib/, /lib64/, /usr/lib/, /usr/lib64/
+```
+
+---
+
+## Tình huống thực tế
+
+### Tình huống 1: Chương trình báo lỗi "cannot open shared object file"
+```bash
+./myapp
+# Error: error while loading shared libraries: libmylib.so.1: 
+# cannot open shared object file: No such file or directory
+```
+
+**Nguyên nhân**: Thiếu thư viện `libmylib.so.1`
+
+**Giải pháp**:
+```bash
+# Bước 1: Tìm xem thư viện có trên hệ thống không
+sudo find / -name "libmylib.so*" 2>/dev/null
+# Giả sử tìm thấy: /opt/myapp/lib/libmylib.so.1
+
+# Bước 2: Thêm đường dẫn vào ldconfig
+echo "/opt/myapp/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+sudo ldconfig
+
+# Bước 3: Kiểm tra
+ldd ./myapp | grep libmylib
+# Output: libmylib.so.1 => /opt/myapp/lib/libmylib.so.1
+
+# Bước 4: Chạy lại
+./myapp  # Thành công!
+```
+
+---
+
+### Tình huống 2: Cài thư viện từ source
+```bash
+# Download và compile thư viện
+wget https://example.com/libfoo-1.0.tar.gz
+tar -xzf libfoo-1.0.tar.gz
+cd libfoo-1.0
+./configure --prefix=/usr/local
+make
+sudo make install
+
+# Thư viện được cài vào /usr/local/lib
+ls /usr/local/lib/libfoo*
+# Output: /usr/local/lib/libfoo.so.1.0.0
+
+# Cập nhật ldconfig
+sudo ldconfig
+
+# Kiểm tra
+ldconfig -p | grep libfoo
+# Output: libfoo.so.1 => /usr/local/lib/libfoo.so.1.0.0
+```
+
+---
+
+### Tình huống 3: Xung đột phiên bản thư viện
+```bash
+# Hệ thống có libssl.so.1.0.0 (cũ)
+# Chương trình mới cần libssl.so.1.1 (mới)
+
+# Giải pháp: Cài cả 2 phiên bản cùng lúc
+sudo yum install compat-openssl10  # RHEL/CentOS
+sudo apt install libssl1.0.0       # Ubuntu/Debian
+
+# Kiểm tra cả 2 tồn tại
+ls /usr/lib64/libssl.so*
+# Output:
+# libssl.so.1.0.0  ← Phiên bản cũ
+# libssl.so.1.1    ← Phiên bản mới
+
+# Chương trình tự động chọn đúng phiên bản cần
+```
+
+---
+
+### Tình huống 4: Debug chương trình không chạy
+```bash
+# Chương trình không chạy, không rõ lý do
+./myapp
+# (không có output gì)
+
+# Bước 1: Kiểm tra thư viện cần
+ldd ./myapp
+# Output:
+# libfoo.so.1 => not found  ← VẤN ĐỀ Ở ĐÂY!
+# libc.so.6 => /lib64/libc.so.6
+
+# Bước 2: Tìm thư viện thiếu
+sudo find / -name "libfoo.so*"
+# Tìm thấy: /opt/app/lib/libfoo.so.1
+
+# Bước 3: Test tạm thời
+export LD_LIBRARY_PATH=/opt/app/lib:$LD_LIBRARY_PATH
+./myapp  # Chạy được!
+
+# Bước 4: Fix vĩnh viễn
+echo "/opt/app/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+sudo ldconfig
+unset LD_LIBRARY_PATH  # Xóa biến tạm
+./myapp  # Vẫn chạy được!
+```
+
+---
+
+## File `/etc/ld.so.cache`
+
+**Định nghĩa**: File binary chứa danh sách tất cả thư viện và vị trí của chúng (được tạo bởi `ldconfig`)
+
+**Tại sao cần cache?**
+- Tìm kiếm trong cache (1 file) nhanh hơn quét toàn bộ `/lib`, `/usr/lib`...
+- Giảm thời gian khởi động chương trình
+
+**Xem nội dung**:
+```bash
+ldconfig -p
+# Output: 1234 libs found in cache `/etc/ld.so.cache'
+#   libz.so.1 => /lib64/libz.so.1
+#   libxml2.so.2 => /lib64/libxml2.so.2
+#   ...
+```
+
+**Xóa và tạo lại** (khi gặp lỗi):
+```bash
+sudo rm /etc/ld.so.cache
+sudo ldconfig
+```
+
+---
+
+## Troubleshooting
+
+### Lỗi: "version 'GLIBC_2.28' not found"
+```bash
+./myapp
+# Error: version `GLIBC_2.28' not found
+```
+
+**Nguyên nhân**: Chương trình được compile trên hệ thống có glibc mới hơn
+
+**Kiểm tra phiên bản glibc**:
+```bash
+ldd --version
+# ldd (GNU libc) 2.17  ← Hệ thống có glibc 2.17
+# Nhưng chương trình cần 2.28
+```
+
+**Giải pháp**:
+1. Compile lại chương trình trên hệ thống hiện tại
+2. Hoặc upgrade hệ thống (RHEL 7 → RHEL 8)
+
+---
+
+### Lỗi: ldconfig không tìm thấy thư viện mới cài
+```bash
+sudo cp libfoo.so /usr/local/lib/
+sudo ldconfig
+ldconfig -p | grep libfoo
+# Không thấy gì!
+```
+
+**Nguyên nhân**: `/usr/local/lib` chưa có trong `/etc/ld.so.conf`
+
+**Giải pháp**:
+```bash
+# Kiểm tra
+cat /etc/ld.so.conf.d/*.conf | grep /usr/local/lib
+# Nếu không có:
+
+echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/local.conf
+sudo ldconfig
+ldconfig -p | grep libfoo  # Giờ thấy rồi!
+```
+
+---
+
+## Tóm tắt cho Newbie
+
+### Bạn cần nhớ 3 thứ:
+
+1. **`ldd [program]`** - Xem chương trình cần thư viện gì
+2. **`sudo ldconfig`** - Cập nhật cache sau khi cài thư viện mới
+3. **`/etc/ld.so.conf.d/`** - Thêm đường dẫn thư viện vào đây
+
+### Quy trình xử lý lỗi thiếu thư viện:
+```bash
+# 1. Chương trình báo lỗi
+./myapp
+# Error: libfoo.so.1: cannot open shared object file
+
+# 2. Kiểm tra thiếu gì
+ldd ./myapp | grep "not found"
+
+# 3. Tìm thư viện
+sudo find / -name "libfoo.so*"
+
+# 4. Thêm đường dẫn
+echo "/path/to/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+
+# 5. Cập nhật cache
+sudo ldconfig
+
+# 6. Chạy lại
+./myapp  # OK!
+```
+
+### Khi nào dùng cái gì?
+
+| Tình huống | Dùng gì |
+|------------|---------|
+| Cài thư viện mới | `sudo ldconfig` |
+| Chương trình không chạy | `ldd [program]` → tìm thư viện thiếu |
+| Test nhanh không cần root | `export LD_LIBRARY_PATH=/path/to/lib` |
+| Cài đặt vĩnh viễn | Thêm vào `/etc/ld.so.conf.d/` + `ldconfig` |
+| Xem thư viện đang có | `ldconfig -p | grep [tên]` |
