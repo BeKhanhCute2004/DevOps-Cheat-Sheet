@@ -1301,6 +1301,23 @@ Tổng: 12MB
 
 ---
 
+### Vị trí Shared Library trên Linux
+
+| Thư mục | Chứa gì | Ví dụ |
+|---------|---------|-------|
+| `/lib/` | Thư viện hệ thống cơ bản (32-bit) | `libc.so.6`, `libm.so.6` |
+| `/lib64/` | Thư viện hệ thống cơ bản (64-bit) | `libc.so.6`, `libpthread.so.0` |
+| `/usr/lib/` | Thư viện ứng dụng (32-bit) | `libssl.so`, `libcurl.so` |
+| `/usr/lib64/` | Thư viện ứng dụng (64-bit) | `libpython3.8.so` |
+| `/usr/local/lib/` | Thư viện tự cài đặt/compile | Thư viện compile từ source |
+| `/usr/share/` | Dữ liệu chia sẻ (không phải code) | Icons, fonts, configs |
+
+**Lưu ý**: 
+- `/lib/` và `/lib64/` chứa thư viện **cần thiết để boot hệ thống**
+- `/usr/lib/` chứa thư viện **cho ứng dụng người dùng**
+
+---
+
 ## 2. Static vs Dynamic Linking
 
 | | Static Linking | Dynamic Linking |
