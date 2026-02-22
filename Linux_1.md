@@ -1584,7 +1584,7 @@ sudo ldconfig
 |------|-------|
 | `ldconfig` | Cập nhật cache |
 | `ldconfig -p` | Xem tất cả lib trong cache |
-| `ldconfig -p | grep [lib]` | Tìm lib cụ thể |
+| `ldconfig -p \| grep [lib]` | Tìm lib cụ thể |
 | `ldconfig -v` | Verbose mode |
 
 **Ví dụ**:
