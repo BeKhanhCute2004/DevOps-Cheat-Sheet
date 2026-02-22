@@ -1273,183 +1273,250 @@ grub2-mkconfig -o /boot/grub2/grub.cfg
 
 # Shared Library
 
-## Shared Library là gì?
+## 1. Khái niệm cơ bản
 
-**Định nghĩa**: Thư viện chia sẻ = Tập hợp các hàm/code được nhiều chương trình dùng chung, không cần nhúng vào mỗi chương trình.
+### Shared Library là gì?
 
-**Ví dụ thực tế**:
+**Định nghĩa**: Code dùng chung giữa nhiều chương trình, không nhúng vào từng chương trình.
+
+**Đặc điểm**:
+- Tên file: `libname.so.version` (vd: `libc.so.6`, `libssl.so.1.1`)
+- `.so` = Shared Object
+- Tiết kiệm RAM và ổ cứng
+
+**So sánh**:
 ```
-Chương trình A cần hàm "printf()"  ┐
-Chương trình B cần hàm "printf()"  ├→ Cùng dùng chung thư viện libc.so
-Chương trình C cần hàm "printf()"  ┘
-```
+KHÔNG dùng Shared Library:
+App A (10MB) = Code (1MB) + Libs (9MB)
+App B (10MB) = Code (1MB) + Libs (9MB)
+App C (10MB) = Code (1MB) + Libs (9MB)
+Tổng: 30MB
 
-**Đặc điểm nhận dạng**:
-- Tên file có đuôi `.so` (shared object)
-- Ví dụ: `libc.so.6`, `libssl.so.1.1`, `libpython3.8.so`
+DÙNG Shared Library:
+App A (1MB) ─┐
+App B (1MB) ─┼→ Libs (9MB chung)
+App C (1MB) ─┘
+Tổng: 12MB
+```
 
 ---
 
-## Tại sao cần Shared Library?
+## 2. Static vs Dynamic Linking
 
-### Không dùng Shared Library (Static Linking)
+| | Static Linking | Dynamic Linking |
+|---|----------------|-----------------|
+| **Code thư viện** | Nhúng vào executable | Tách riêng, load khi chạy |
+| **Kích thước** | Lớn (10-50MB) | Nhỏ (vài KB-MB) |
+| **RAM** | Mỗi app 1 copy | Nhiều app dùng chung |
+| **Phụ thuộc** | Độc lập | Cần thư viện hệ thống |
+| **Cập nhật** | Phải compile lại | Tự động |
+| **Khi dùng** | Embedded, container | 99% chương trình Linux |
+
+---
+
+## 3. Dynamic Linking - 2 loại
+
+### 3.1. Load-time Linking (Phổ biến nhất)
+
+**Load khi nào**: Ngay khi chương trình khởi động, **trước** khi `main()` chạy.
+
+**Quy trình**:
 ```
-Program A (10MB) = Code (1MB) + libc (5MB) + libssl (4MB)
-Program B (10MB) = Code (1MB) + libc (5MB) + libssl (4MB)
-Program C (10MB) = Code (1MB) + libc (5MB) + libssl (4MB)
-───────────────────────────────────────────────────────────
-Tổng: 30MB trên ổ cứng, 30MB trong RAM
+./myapp
+  ↓
+Kernel load program
+  ↓
+Dynamic linker (ld.so) tìm + load TẤT CẢ thư viện
+  ↓
+Link các function
+  ↓
+Chạy main()
 ```
 
-### Dùng Shared Library (Dynamic Linking)
-```
-Program A (1MB) ─┐
-Program B (1MB) ─┼→ libc.so (5MB) + libssl.so (4MB)
-Program C (1MB) ─┘
-───────────────────────────────────────────────────────────
-Tổng: 12MB trên ổ cứng, 12MB trong RAM
+**Đặc điểm**:
+- ✅ Đơn giản, tự động
+- ✅ Lỗi thiếu lib → Phát hiện ngay khi khởi động
+- ❌ Khởi động chậm hơn nếu nhiều lib
+- ❌ Tốn RAM cho lib không dùng
+
+**Xem load-time libraries**:
+```bash
+ldd /bin/ls
+# Tất cả lib ở đây đều load ngay khi khởi động
 ```
 
-**Lợi ích**:
-- ✅ Tiết kiệm dung lượng ổ cứng
+---
+
+### 3.2. Run-time Linking (Plugin, advanced)
+
+**Load khi nào**: Trong lúc chương trình chạy, **khi cần**.
+
+**Quy trình**:
+```
+main() chạy
+  ↓
+Gặp dlopen("libplugin.so")
+  ↓
+Load thư viện vào RAM
+  ↓
+dlsym() tìm function
+  ↓
+Gọi function
+  ↓
+dlclose() giải phóng (tuỳ chọn)
+```
+
+**Đặc điểm**:
+- ✅ Khởi động nhanh (chỉ load khi cần)
 - ✅ Tiết kiệm RAM
-- ✅ Cập nhật thư viện 1 lần → tất cả chương trình được cập nhật
-- ✅ Sửa lỗi bảo mật thư viện dễ dàng
+- ✅ Linh hoạt (plugin system)
+- ❌ Phức tạp (phải code thủ công)
+- ❌ Lỗi thiếu lib → Chỉ phát hiện khi chạy đến dòng đó
+
+**Ứng dụng**: Firefox extensions, Apache modules, GIMP plugins
+
+**Code ví dụ**:
+```c
+#include <dlfcn.h>
+
+void* handle = dlopen("libplugin.so", RTLD_LAZY);
+void (*func)() = dlsym(handle, "my_function");
+func();
+dlclose(handle);
+```
+
+**Lưu ý**: `ldd` KHÔNG nhìn thấy run-time libraries
 
 ---
 
-## Vị trí Shared Library trên Linux
+## 4. Cơ chế tìm kiếm thư viện
 
-| Thư mục | Chứa gì | Ví dụ |
-|---------|---------|-------|
-| `/lib/` | Thư viện hệ thống cơ bản (32-bit) | `libc.so.6`, `libm.so.6` |
-| `/lib64/` | Thư viện hệ thống cơ bản (64-bit) | `libc.so.6`, `libpthread.so.0` |
-| `/usr/lib/` | Thư viện ứng dụng (32-bit) (apt, yum, ...) | `libssl.so`, `libcurl.so` |
-| `/usr/lib64/` | Thư viện ứng dụng (64-bit) (apt,yum, ...)| `libpython3.8.so` |
-| `/usr/local/lib/` | Thư viện tự cài đặt/compile (make install, git clone, ...)| Thư viện compile từ source |
-| `/usr/share/` | Dữ liệu chia sẻ (không phải code) | Icons, fonts, configs |
+### 4.1. Thứ tự ưu tiên (Cao → Thấp)
+```
+Program cần libfoo.so.1
 
-**Lưu ý**: 
-- `/lib/` và `/lib64/` chứa thư viện **cần thiết để boot hệ thống**
-- `/usr/lib/` chứa thư viện **cho ứng dụng người dùng**
+1️⃣ LD_LIBRARY_PATH          ← Biến môi trường (CAO NHẤT)
+   Tìm thấy? → DÙNG
+   Không? ↓
+
+2️⃣ /etc/ld.so.cache          ← Cache (NHANH NHẤT)
+   Tìm thấy? → DÙNG
+   Không? ↓
+
+3️⃣ Thư mục mặc định           ← Fallback
+   /lib, /lib64
+   /usr/lib, /usr/lib64
+   Tìm thấy? → DÙNG
+   Không? ↓
+
+❌ ERROR: cannot open shared object file
+```
+
+**⚠️ Lưu ý**: `LD_LIBRARY_PATH` ưu tiên cao nhất → Nguy hiểm nếu dùng sai!
 
 ---
 
-## Symbolic Link (Liên kết mềm) trong Shared Library
+### 4.2. Dynamic Linker (ld.so)
 
-### Tại sao cần Symbolic Link?
-```bash
-ls -l /lib64/libc.so*
-# Output:
-lrwxrwxrwx libc.so.6 -> libc-2.17.so         ← Symlink
--rwxr-xr-x libc-2.17.so                       ← File thật
-```
-
-**Giải thích**:
-- `libc-2.17.so` = File thật (phiên bản cụ thể)
-- `libc.so.6` = Symlink trỏ đến file thật
-- Chương trình gọi `libc.so.6` (tên chung) → tự động dùng phiên bản mới nhất
-
-**Lợi ích**:
-```
-Trước khi update:
-Program → libc.so.6 → libc-2.17.so
-
-Sau khi update (cài libc-2.28.so):
-Program → libc.so.6 → libc-2.28.so  ← Chỉ cần đổi symlink
-         (không đổi)   (file mới)
-
-→ Chương trình tự động dùng phiên bản mới mà KHÔNG CẦN biên dịch lại!
-```
-
----
-
-## Static Linking vs Dynamic Linking
-
-### Static Linking (Liên kết tĩnh)
-
-**Cách hoạt động**: Nhúng toàn bộ thư viện vào file thực thi
-```bash
-gcc -static myapp.c -o myapp
-# myapp chứa ĐẦY ĐỦ code từ libc
-```
-
-**Ưu điểm**:
-- ✅ Chương trình độc lập, không phụ thuộc thư viện hệ thống
-- ✅ Dễ deploy (copy 1 file là xong)
-- ✅ Kiểm soát chính xác phiên bản thư viện
-
-**Nhược điểm**:
-- ❌ File thực thi rất lớn (10-50MB cho chương trình đơn giản)
-- ❌ Lãng phí RAM (mỗi chương trình giữ 1 bản copy)
-- ❌ Cập nhật thư viện = phải biên dịch lại chương trình
-
-**Khi nào dùng**: Embedded systems, containers đơn giản
-
----
-
-### Dynamic Linking (Liên kết động) - **Phổ biến hơn**
-
-**Cách hoạt động**: Chương trình chỉ chứa "con trỏ" đến thư viện, load khi chạy
-```bash
-gcc myapp.c -o myapp
-# myapp chỉ chứa địa chỉ của libc.so
-```
-
-**Ưu điểm**:
-- ✅ File thực thi nhỏ (vài KB - vài MB)
-- ✅ Tiết kiệm RAM (nhiều chương trình dùng chung 1 bản copy trong RAM)
-- ✅ Cập nhật thư viện → tất cả chương trình được lợi
-- ✅ Sửa lỗi bảo mật nhanh
-
-**Nhược điểm**:
-- ❌ Phụ thuộc thư viện hệ thống
-- ❌ "Dependency hell" - thiếu thư viện → chương trình không chạy
-- ❌ Xung đột phiên bản
-
-**Khi nào dùng**: 99% chương trình trên Linux
-
----
-
-## Cách Linux tìm Shared Library (ld.so)
-
-### Quy trình tìm kiếm
-```
-Khi chạy program:
-1. Kernel load program vào RAM
-2. Gọi ld.so (dynamic linker)
-3. ld.so tìm thư viện theo thứ tự:
-   a. LD_LIBRARY_PATH (biến môi trường)
-   b. /etc/ld.so.cache (cache được tạo bởi ldconfig)
-   c. /lib/, /lib64/, /usr/lib/, /usr/lib64/ (mặc định)
-4. Load thư viện vào RAM
-5. Liên kết các hàm
-6. Chạy program
-```
-
-### `ld.so` - Dynamic Linker
-
-**Định nghĩa**: Chương trình đặc biệt chịu trách nhiệm load và liên kết thư viện khi chạy chương trình.
+**Là gì**: Chương trình đặc biệt load và link thư viện khi program chạy.
 
 **Vị trí**:
 - 64-bit: `/lib64/ld-linux-x86-64.so.2`
 - 32-bit: `/lib/ld-linux.so.2`
 
-**Bạn có thể thấy nó khi chạy**:
+**Nhiệm vụ**:
+1. Đọc executable → Lấy danh sách lib cần
+2. Tìm lib theo thứ tự ưu tiên
+3. Load lib vào RAM
+4. Link các function
+5. Chuyển quyền cho `main()`
+
+**Debug**:
 ```bash
-ldd /bin/ls
-# Output:
-    linux-vdso.so.1 (0x00007ffd8a9fe000)
-    libselinux.so.1 => /lib64/libselinux.so.1
-    libc.so.6 => /lib64/libc.so.6
-    /lib64/ld-linux-x86-64.so.2  ← Dynamic linker
+LD_DEBUG=libs ./myapp 2>&1 | grep libfoo
+# Xem chi tiết quá trình tìm + load
 ```
 
 ---
 
-## Lệnh quan trọng
+## 5. Cấu hình đường dẫn thư viện
 
-### 1. `ldd` - Kiểm tra thư viện chương trình cần
+### 5.1. `/etc/ld.so.conf` + `ldconfig` (Khuyên dùng)
+
+**Mục đích**: Cấu hình vĩnh viễn, toàn hệ thống.
+
+**Cấu trúc**:
+```
+/etc/ld.so.conf              ← File chính (thường chỉ include)
+└── /etc/ld.so.conf.d/       ← Thư mục config
+    ├── mysql.conf → /usr/lib64/mysql
+    ├── local.conf → /usr/local/lib
+    └── myapp.conf → /opt/myapp/lib
+```
+
+**Quy trình**:
+```bash
+# 1. Thêm đường dẫn
+echo "/opt/myapp/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+
+# 2. Cập nhật cache (BẮT BUỘC)
+sudo ldconfig
+
+# 3. Kiểm tra
+ldconfig -p | grep myapp
+```
+
+**Ưu điểm**:
+- ✅ Vĩnh viễn (tồn tại sau reboot)
+- ✅ Nhanh (dùng cache)
+- ✅ Áp dụng toàn hệ thống
+
+**Nhược điểm**:
+- ❌ Cần quyền root
+- ❌ Phải chạy `ldconfig` sau mỗi lần sửa
+
+---
+
+### 5.2. `LD_LIBRARY_PATH` (Chỉ dùng test)
+
+**Mục đích**: Cấu hình tạm thời, không cần root.
+
+**Cú pháp**:
+```bash
+export LD_LIBRARY_PATH=/opt/lib1:/opt/lib2:$LD_LIBRARY_PATH
+```
+
+**Ưu điểm**:
+- ✅ Không cần root
+- ✅ Test nhanh
+- ✅ Không ảnh hưởng hệ thống
+
+**Nhược điểm**:
+- ❌ Tạm thời (mất sau khi đóng terminal)
+- ❌ Ưu tiên CAO NHẤT → Nguy hiểm
+- ❌ Không dùng cache → Chậm
+
+**⚠️ Cảnh báo**: Chỉ dùng để test, **KHÔNG** dùng trong production!
+
+---
+
+### 5.3. So sánh
+
+| | `/etc/ld.so.conf` | `LD_LIBRARY_PATH` |
+|---|-------------------|-------------------|
+| **Quyền** | Cần root | Không cần |
+| **Phạm vi** | Toàn hệ thống | Phiên terminal |
+| **Tốc độ** | Nhanh (cache) | Chậm hơn |
+| **Ưu tiên** | Thấp | **CAO NHẤT** |
+| **Vĩnh viễn** | Có | Không |
+| **Production** | ✅ Dùng | ❌ Không dùng |
+| **Test/Debug** | ⚠️ Cần root | ✅ Dùng |
+
+---
+
+## 6. Lệnh quan trọng
+
+### 6.1. `ldd` - Xem thư viện program cần
 ```bash
 ldd [program]
 ```
@@ -1457,392 +1524,569 @@ ldd [program]
 **Ví dụ**:
 ```bash
 ldd /bin/bash
-# Output:
-linux-vdso.so.1 (0x00007ffc123ab000)           ← Virtual DSO (kernel)
-libtinfo.so.6 => /lib64/libtinfo.so.6          ← Terminal info
-libdl.so.2 => /lib64/libdl.so.2                ← Dynamic loading
-libc.so.6 => /lib64/libc.so.6                  ← C standard library
-/lib64/ld-linux-x86-64.so.2                    ← Dynamic linker
+# linux-vdso.so.1
+# libtinfo.so.6 => /lib64/libtinfo.so.6
+# libc.so.6 => /lib64/libc.so.6
+# /lib64/ld-linux-x86-64.so.2  ← Dynamic linker
 ```
 
 **Đọc kết quả**:
-
-| Cột | Ý nghĩa |
-|-----|---------|
-| `libc.so.6` | Tên thư viện chương trình cần |
-| `=>` | "Trỏ đến" |
-| `/lib64/libc.so.6` | Đường dẫn thật của thư viện |
-| `(0x00007ffc...)` | Địa chỉ load vào RAM |
-
-**Trường hợp lỗi**:
-```bash
-ldd /opt/myapp/bin/myapp
-# Output:
-libmylib.so.1 => not found  ← THIẾU THƯ VIỆN!
-libc.so.6 => /lib64/libc.so.6
+```
+libc.so.6 => /lib64/libc.so.6 (0x00007f...)
+   ↑            ↑                  ↑
+  Tên       Đường dẫn        Địa chỉ RAM
 ```
 
-→ Chương trình không chạy được vì thiếu `libmylib.so.1`
+**Lỗi thiếu lib**:
+```bash
+ldd /opt/myapp
+# libfoo.so.1 => not found  ← THIẾU!
+```
 
 ---
 
-### 2. `ldconfig` - Cập nhật cache thư viện
+### 6.2. `ldconfig` - Cập nhật cache
 ```bash
-ldconfig
+sudo ldconfig
 ```
 
 **Chức năng**:
-1. Quét tất cả thư mục trong `/etc/ld.so.conf`
-2. Tìm tất cả file `.so`
-3. Tạo symlink cho phiên bản mới nhất
-4. Lưu danh sách vào `/etc/ld.so.cache`
+1. Quét thư mục trong `/etc/ld.so.conf`
+2. Tìm tất cả `.so` files
+3. Tạo symlink (nếu cần)
+4. Tạo `/etc/ld.so.cache`
 
 **Khi nào chạy**:
-- ✅ Sau khi cài đặt thư viện mới
-- ✅ Sau khi compile thư viện từ source
-- ✅ Sau khi thêm đường dẫn vào `/etc/ld.so.conf`
-- ✅ Khi chương trình báo lỗi "cannot open shared object file"
+- ✅ Sau khi cài lib mới
+- ✅ Sau khi thêm đường dẫn vào `/etc/ld.so.conf.d/`
+- ✅ Khi program báo "cannot open shared object file"
+
+**Tùy chọn hữu ích**:
+
+| Lệnh | Mô tả |
+|------|-------|
+| `ldconfig` | Cập nhật cache |
+| `ldconfig -p` | Xem tất cả lib trong cache |
+| `ldconfig -p | grep [lib]` | Tìm lib cụ thể |
+| `ldconfig -v` | Verbose mode |
 
 **Ví dụ**:
 ```bash
-# Cài thư viện mới
-sudo cp libmylib.so.1.0 /usr/local/lib/
+# Cài lib mới
+sudo cp libfoo.so /usr/local/lib/
+sudo ldconfig
+
+# Kiểm tra
+ldconfig -p | grep libfoo
+# libfoo.so.1 => /usr/local/lib/libfoo.so.1
+```
+
+---
+
+### 6.3. `LD_DEBUG` - Debug dynamic linker
+```bash
+LD_DEBUG=[option] ./program
+```
+
+**Options**:
+
+| Option | Hiển thị |
+|--------|----------|
+| `libs` | Lib nào được load |
+| `files` | File nào được mở |
+| `bindings` | Function binding |
+| `all` | Tất cả |
+
+**Ví dụ**:
+```bash
+# Xem lib được load
+LD_DEBUG=libs ./myapp 2>&1 | grep libfoo
+# search cache=/etc/ld.so.cache
+# trying file=/lib64/libfoo.so.1
+```
+
+---
+
+## 7. GCC - Compile với Shared Library
+
+### 7.1. Compile chương trình dùng lib
+
+#### Dùng lib hệ thống (đã có sẵn)
+```bash
+# Compile và link với libc (tự động)
+gcc app.c -o app
+
+# Link với lib cụ thể (-l)
+gcc app.c -o app -lm        # Link với libm.so (math)
+gcc app.c -o app -lpthread  # Link với libpthread.so
+
+# Chỉ định thư mục lib (-L)
+gcc app.c -o app -L/opt/myapp/lib -lmylib
+#                   ↑                 ↑
+#              Thư mục lib      Tên lib (libmylib.so)
+```
+
+**Lưu ý**: `-lmylib` → Tìm `libmylib.so` hoặc `libmylib.a`
+
+---
+
+#### Dùng lib ở thư mục không chuẩn
+```bash
+# Cách 1: Dùng -L và -l
+gcc app.c -o app -L/opt/lib -lfoo
+
+# Cách 2: Chỉ định đường dẫn đầy đủ
+gcc app.c -o app /opt/lib/libfoo.so
+
+# Cách 3: Dùng -Wl,-rpath (nhúng đường dẫn vào executable)
+gcc app.c -o app -L/opt/lib -lfoo -Wl,-rpath,/opt/lib
+#                                      ↑
+#                    Executable sẽ nhớ đường dẫn này
+```
+
+**So sánh**:
+
+| Cách | Cần ldconfig? | Cần LD_LIBRARY_PATH? | Runtime |
+|------|---------------|----------------------|---------|
+| `-L -l` | ✅ Có | ✅ Có (hoặc ldconfig) | Tìm theo thứ tự ưu tiên |
+| `-Wl,-rpath` | ❌ Không | ❌ Không | Tìm tại đường dẫn nhúng |
+
+---
+
+#### Compile static (nhúng lib vào executable)
+```bash
+# Link static với lib cụ thể
+gcc app.c -o app -static -lm
+
+# Link static với tất cả lib
+gcc app.c -o app -static
+
+# Kết quả: executable lớn, độc lập
+ls -lh app
+# -rwxr-xr-x app  (10MB thay vì 20KB)
+```
+
+---
+
+### 7.2. Tạo Shared Library
+
+#### Bước 1: Compile thành object file (.o) với -fPIC
+```bash
+gcc -c -fPIC mylib.c -o mylib.o
+#       ↑
+#   Position Independent Code (BẮT BUỘC cho shared lib)
+```
+
+**Tại sao cần `-fPIC`?**
+- Shared lib được load vào **địa chỉ RAM bất kỳ**
+- Code phải "độc lập vị trí" để chạy ở bất kỳ địa chỉ nào
+
+---
+
+#### Bước 2: Tạo shared library (.so)
+```bash
+gcc -shared mylib.o -o libmylib.so
+#    ↑
+#   Tạo shared library
+```
+
+**Hoặc gộp 2 bước**:
+```bash
+gcc -shared -fPIC mylib.c -o libmylib.so
+```
+
+---
+
+#### Bước 3: Tạo symlink (nếu cần)
+```bash
+# libmylib.so.1.0.0 = File thật (phiên bản cụ thể)
+ln -s libmylib.so.1.0.0 libmylib.so.1  # Symlink major version
+ln -s libmylib.so.1 libmylib.so        # Symlink generic
+```
+
+**Kết quả**:
+```
+libmylib.so -> libmylib.so.1 -> libmylib.so.1.0.0
+   (dev)         (runtime)         (file thật)
+```
+
+---
+
+#### Bước 4: Cài đặt vào hệ thống
+```bash
+# Copy vào thư mục hệ thống
+sudo cp libmylib.so* /usr/local/lib/
 
 # Cập nhật cache
 sudo ldconfig
 
 # Kiểm tra
 ldconfig -p | grep libmylib
-# Output: libmylib.so.1 (libc6,x86-64) => /usr/local/lib/libmylib.so.1.0
 ```
-
-**Tùy chọn hữu ích**:
-
-| Lệnh | Mô tả |
-|------|-------|
-| `ldconfig -p` | Xem tất cả thư viện trong cache |
-| `ldconfig -p \| grep [lib]` | Tìm thư viện cụ thể |
-| `ldconfig -v` | Verbose mode - xem chi tiết quá trình quét |
-| `ldconfig -n [dir]` | Chỉ quét thư mục cụ thể |
 
 ---
 
-### 3. `/etc/ld.so.conf` - Cấu hình đường dẫn thư viện
+### 7.3. GCC Cheatsheet
 
-**File chính**: `/etc/ld.so.conf`
+| Mục đích | Lệnh | Giải thích |
+|----------|------|------------|
+| **Compile thông thường** | `gcc app.c -o app` | Link dynamic với libc |
+| **Link với lib cụ thể** | `gcc app.c -lm -lpthread -o app` | Link libm.so, libpthread.so |
+| **Chỉ định thư mục lib** | `gcc app.c -L/opt/lib -lfoo -o app` | Tìm libfoo.so trong /opt/lib |
+| **Nhúng đường dẫn lib** | `gcc app.c -L/opt/lib -lfoo -Wl,-rpath,/opt/lib -o app` | Executable nhớ đường dẫn |
+| **Compile static** | `gcc -static app.c -o app` | Nhúng tất cả lib vào executable |
+| **Xem lib program cần** | `ldd ./app` | List dynamic dependencies |
+| | | |
+| **Tạo shared lib (1 bước)** | `gcc -shared -fPIC mylib.c -o libmylib.so` | Tạo libmylib.so từ mylib.c |
+| **Tạo shared lib (2 bước)** | `gcc -c -fPIC mylib.c -o mylib.o`<br>`gcc -shared mylib.o -o libmylib.so` | Compile object → Tạo .so |
+| **Tạo static lib** | `gcc -c mylib.c -o mylib.o`<br>`ar rcs libmylib.a mylib.o` | Tạo libmylib.a (archive) |
 
-**Nội dung điển hình**:
+---
+
+### 7.4. Các flag GCC quan trọng
+
+| Flag | Ý nghĩa | Khi nào dùng |
+|------|---------|--------------|
+| `-l[name]` | Link với lib`[name]`.so | `-lm` → libm.so, `-lpthread` → libpthread.so |
+| `-L[dir]` | Thêm thư mục tìm lib | `-L/opt/lib` → Tìm trong /opt/lib |
+| `-I[dir]` | Thêm thư mục tìm header (.h) | `-I/opt/include` |
+| `-fPIC` | Position Independent Code | **BẮT BUỘC** khi tạo shared lib |
+| `-shared` | Tạo shared library | Tạo .so file |
+| `-static` | Link static | Nhúng lib vào executable |
+| `-Wl,-rpath,[dir]` | Nhúng đường dẫn lib vào executable | Không cần ldconfig/LD_LIBRARY_PATH |
+| `-Wl,-soname,[name]` | Đặt soname cho shared lib | `-Wl,-soname,libfoo.so.1` |
+
+---
+
+### 7.5. Ví dụ thực tế
+
+#### Ví dụ 1: Tạo và dùng shared library
 ```bash
-cat /etc/ld.so.conf
-# Output:
-include ld.so.conf.d/*.conf
+# File: mylib.c
+#include <stdio.h>
+void hello() { printf("Hello from mylib!\n"); }
+
+# File: app.c
+void hello();
+int main() { hello(); return 0; }
+
+# Bước 1: Tạo shared library
+gcc -shared -fPIC mylib.c -o libmylib.so
+
+# Bước 2: Compile app (link với mylib)
+gcc app.c -L. -lmylib -o app
+#           ↑    ↑
+#       Thư mục  Lib name
+#       hiện tại
+
+# Bước 3: Chạy (lỗi - thiếu lib trong hệ thống)
+./app
+# Error: libmylib.so: cannot open shared object file
+
+# Bước 4: Fix tạm thời
+export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH
+./app
+# Hello from mylib!
+
+# Bước 5: Fix vĩnh viễn (cách 1 - ldconfig)
+sudo cp libmylib.so /usr/local/lib/
+sudo ldconfig
+unset LD_LIBRARY_PATH
+./app  # OK!
+
+# Hoặc (cách 2 - rpath)
+gcc app.c -L. -lmylib -Wl,-rpath,$(pwd) -o app
+./app  # OK! (không cần ldconfig)
 ```
 
-→ Đọc tất cả file `.conf` trong thư mục `ld.so.conf.d/`
+---
 
-**Xem tất cả đường dẫn**:
+#### Ví dụ 2: Compile với nhiều lib
 ```bash
-cat /etc/ld.so.conf.d/*.conf
-# Output:
-/usr/lib64/mysql
-/usr/lib64/qt5
-/usr/local/lib
-/opt/myapp/lib
+# app.c cần: libm.so, libpthread.so, libssl.so
+gcc app.c -o app -lm -lpthread -lssl -lcrypto
+
+# Kiểm tra
+ldd ./app
+# libm.so.6 => /lib64/libm.so.6
+# libpthread.so.0 => /lib64/libpthread.so.0
+# libssl.so.1.1 => /lib64/libssl.so.1.1
+# libcrypto.so.1.1 => /lib64/libcrypto.so.1.1
 ```
 
-**Thêm đường dẫn mới**:
+---
+
+#### Ví dụ 3: Tạo lib với version
 ```bash
-# Cách 1: Tạo file mới (khuyên dùng)
-echo "/opt/myapp/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+# Tạo shared lib với version
+gcc -shared -fPIC -Wl,-soname,libfoo.so.1 foo.c -o libfoo.so.1.0.0
+
+# Tạo symlink
+ln -s libfoo.so.1.0.0 libfoo.so.1
+ln -s libfoo.so.1 libfoo.so
+
+# Cài đặt
+sudo cp libfoo.so* /usr/local/lib/
 sudo ldconfig
 
-# Cách 2: Thêm trực tiếp vào /etc/ld.so.conf (không khuyên)
-echo "/opt/myapp/lib" | sudo tee -a /etc/ld.so.conf
+# Kết quả
+ls -l /usr/local/lib/libfoo*
+# libfoo.so -> libfoo.so.1
+# libfoo.so.1 -> libfoo.so.1.0.0
+# libfoo.so.1.0.0
+```
+
+---
+
+## 8. Workflow thực tế
+
+### Workflow 1: Xử lý lỗi "cannot open shared object file"
+```bash
+# Bước 1: Lỗi
+./myapp
+# Error: libfoo.so.1: cannot open shared object file
+
+# Bước 2: Xác định thiếu gì
+ldd ./myapp | grep "not found"
+# libfoo.so.1 => not found
+
+# Bước 3: Tìm thư viện
+sudo find / -name "libfoo.so*" 2>/dev/null
+# /opt/vendor/lib/libfoo.so.1
+
+# Bước 4: Test tạm thời
+export LD_LIBRARY_PATH=/opt/vendor/lib:$LD_LIBRARY_PATH
+./myapp  # Chạy được!
+
+# Bước 5: Fix vĩnh viễn
+echo "/opt/vendor/lib" | sudo tee /etc/ld.so.conf.d/vendor.conf
 sudo ldconfig
-```
+unset LD_LIBRARY_PATH
 
-**Kiểm tra**:
-```bash
-ldconfig -p | grep myapp
-# Nếu thấy thư viện từ /opt/myapp/lib → Thành công!
-```
-
----
-
-### 4. `LD_LIBRARY_PATH` - Biến môi trường
-
-**Định nghĩa**: Biến môi trường chỉ định đường dẫn thư viện **tạm thời** cho phiên làm việc hiện tại.
-
-**Cú pháp**:
-```bash
-export LD_LIBRARY_PATH=/path/to/lib1:/path/to/lib2:$LD_LIBRARY_PATH
-```
-
-**Ví dụ thực tế**:
-```bash
-# Chương trình báo lỗi thiếu thư viện
-./myapp
-# Error: libmylib.so.1: cannot open shared object file
-
-# Giải pháp tạm thời
-export LD_LIBRARY_PATH=/opt/myapp/lib:$LD_LIBRARY_PATH
-./myapp
-# Chạy thành công!
-```
-
-**Ưu điểm**:
-- ✅ Không cần quyền root
-- ✅ Không ảnh hưởng hệ thống
-- ✅ Test nhanh
-
-**Nhược điểm**:
-- ❌ Chỉ có hiệu lực trong phiên terminal hiện tại
-- ❌ Mất sau khi logout/reboot
-- ❌ Có thể gây xung đột phiên bản
-
-**Đặt vĩnh viễn** (cho user hiện tại):
-```bash
-# Thêm vào ~/.bashrc
-echo 'export LD_LIBRARY_PATH=/opt/myapp/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**Đặt vĩnh viễn** (cho toàn hệ thống):
-```bash
-# Tạo file trong /etc/profile.d/
-echo 'export LD_LIBRARY_PATH=/opt/myapp/lib:$LD_LIBRARY_PATH' | sudo tee /etc/profile.d/myapp.sh
+# Bước 6: Kiểm tra
+ldd ./myapp | grep libfoo
+# libfoo.so.1 => /opt/vendor/lib/libfoo.so.1 ✅
 ```
 
 ---
 
-## So sánh 3 cách cấu hình đường dẫn thư viện
-
-| Phương pháp | Khi nào dùng | Ưu điểm | Nhược điểm |
-|-------------|--------------|---------|------------|
-| **`/etc/ld.so.conf`** | Cài đặt vĩnh viễn thư viện hệ thống | • Nhanh (dùng cache)<br>• Áp dụng toàn hệ thống<br>• Được ưu tiên cao | • Cần root<br>• Phải chạy `ldconfig` |
-| **`LD_LIBRARY_PATH`** | Test tạm thời, không có quyền root | • Không cần root<br>• Test nhanh<br>• Không ảnh hưởng hệ thống | • Chỉ trong phiên hiện tại<br>• Override thư viện hệ thống (nguy hiểm) |
-| **Hardcode trong program** | Chương trình tự động tìm | • Không cần cấu hình | • Phải biên dịch lại<br>• Không linh hoạt |
-
-**Thứ tự ưu tiên tìm kiếm**:
-```
-1. LD_LIBRARY_PATH (cao nhất - nguy hiểm)
-2. /etc/ld.so.cache
-3. /lib/, /lib64/, /usr/lib/, /usr/lib64/
-```
-
----
-
-## Tình huống thực tế
-
-### Tình huống 1: Chương trình báo lỗi "cannot open shared object file"
+### Workflow 2: Compile từ source có nhiều lib
 ```bash
-./myapp
-# Error: error while loading shared libraries: libmylib.so.1: 
-# cannot open shared object file: No such file or directory
-```
+# Download
+wget https://example.com/app-1.0.tar.gz
+tar -xzf app-1.0.tar.gz
+cd app-1.0
 
-**Nguyên nhân**: Thiếu thư viện `libmylib.so.1`
-
-**Giải pháp**:
-```bash
-# Bước 1: Tìm xem thư viện có trên hệ thống không
-sudo find / -name "libmylib.so*" 2>/dev/null
-# Giả sử tìm thấy: /opt/myapp/lib/libmylib.so.1
-
-# Bước 2: Thêm đường dẫn vào ldconfig
-echo "/opt/myapp/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
-sudo ldconfig
-
-# Bước 3: Kiểm tra
-ldd ./myapp | grep libmylib
-# Output: libmylib.so.1 => /opt/myapp/lib/libmylib.so.1
-
-# Bước 4: Chạy lại
-./myapp  # Thành công!
-```
-
----
-
-### Tình huống 2: Cài thư viện từ source
-```bash
-# Download và compile thư viện
-wget https://example.com/libfoo-1.0.tar.gz
-tar -xzf libfoo-1.0.tar.gz
-cd libfoo-1.0
+# Configure (tự động tìm lib)
 ./configure --prefix=/usr/local
-make
-sudo make install
 
-# Thư viện được cài vào /usr/local/lib
-ls /usr/local/lib/libfoo*
-# Output: /usr/local/lib/libfoo.so.1.0.0
+# Nếu thiếu lib
+# Error: libssl not found
+sudo yum install openssl-devel  # RHEL/CentOS
+# hoặc
+sudo apt install libssl-dev     # Ubuntu/Debian
+
+# Compile
+make
+
+# Install
+sudo make install
 
 # Cập nhật ldconfig
 sudo ldconfig
 
 # Kiểm tra
-ldconfig -p | grep libfoo
-# Output: libfoo.so.1 => /usr/local/lib/libfoo.so.1.0.0
+ldd /usr/local/bin/app
 ```
 
 ---
 
-### Tình huống 3: Xung đột phiên bản thư viện
-```bash
-# Hệ thống có libssl.so.1.0.0 (cũ)
-# Chương trình mới cần libssl.so.1.1 (mới)
+## 9. Troubleshooting
 
-# Giải pháp: Cài cả 2 phiên bản cùng lúc
-sudo yum install compat-openssl10  # RHEL/CentOS
-sudo apt install libssl1.0.0       # Ubuntu/Debian
-
-# Kiểm tra cả 2 tồn tại
-ls /usr/lib64/libssl.so*
-# Output:
-# libssl.so.1.0.0  ← Phiên bản cũ
-# libssl.so.1.1    ← Phiên bản mới
-
-# Chương trình tự động chọn đúng phiên bản cần
-```
-
----
-
-### Tình huống 4: Debug chương trình không chạy
-```bash
-# Chương trình không chạy, không rõ lý do
-./myapp
-# (không có output gì)
-
-# Bước 1: Kiểm tra thư viện cần
-ldd ./myapp
-# Output:
-# libfoo.so.1 => not found  ← VẤN ĐỀ Ở ĐÂY!
-# libc.so.6 => /lib64/libc.so.6
-
-# Bước 2: Tìm thư viện thiếu
-sudo find / -name "libfoo.so*"
-# Tìm thấy: /opt/app/lib/libfoo.so.1
-
-# Bước 3: Test tạm thời
-export LD_LIBRARY_PATH=/opt/app/lib:$LD_LIBRARY_PATH
-./myapp  # Chạy được!
-
-# Bước 4: Fix vĩnh viễn
-echo "/opt/app/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
-sudo ldconfig
-unset LD_LIBRARY_PATH  # Xóa biến tạm
-./myapp  # Vẫn chạy được!
-```
-
----
-
-## File `/etc/ld.so.cache`
-
-**Định nghĩa**: File binary chứa danh sách tất cả thư viện và vị trí của chúng (được tạo bởi `ldconfig`)
-
-**Tại sao cần cache?**
-- Tìm kiếm trong cache (1 file) nhanh hơn quét toàn bộ `/lib`, `/usr/lib`...
-- Giảm thời gian khởi động chương trình
-
-**Xem nội dung**:
-```bash
-ldconfig -p
-# Output: 1234 libs found in cache `/etc/ld.so.cache'
-#   libz.so.1 => /lib64/libz.so.1
-#   libxml2.so.2 => /lib64/libxml2.so.2
-#   ...
-```
-
-**Xóa và tạo lại** (khi gặp lỗi):
-```bash
-sudo rm /etc/ld.so.cache
-sudo ldconfig
-```
-
----
-
-## Troubleshooting
-
-### Lỗi: "version 'GLIBC_2.28' not found"
+### Lỗi: "version 'GLIBC_X.XX' not found"
 ```bash
 ./myapp
 # Error: version `GLIBC_2.28' not found
 ```
 
-**Nguyên nhân**: Chương trình được compile trên hệ thống có glibc mới hơn
+**Nguyên nhân**: Program compile trên hệ thống có glibc mới hơn.
 
-**Kiểm tra phiên bản glibc**:
+**Kiểm tra**:
 ```bash
 ldd --version
-# ldd (GNU libc) 2.17  ← Hệ thống có glibc 2.17
-# Nhưng chương trình cần 2.28
+# ldd (GNU libc) 2.17  ← Hệ thống chỉ có 2.17
+
+strings ./myapp | grep GLIBC_
+# GLIBC_2.28  ← Cần 2.28
 ```
 
 **Giải pháp**:
-1. Compile lại chương trình trên hệ thống hiện tại
-2. Hoặc upgrade hệ thống (RHEL 7 → RHEL 8)
+1. Compile lại trên hệ thống hiện tại
+2. Upgrade OS
+3. Dùng container
 
 ---
 
-### Lỗi: ldconfig không tìm thấy thư viện mới cài
+### Lỗi: LD_LIBRARY_PATH không hoạt động
 ```bash
-sudo cp libfoo.so /usr/local/lib/
-sudo ldconfig
-ldconfig -p | grep libfoo
-# Không thấy gì!
-```
-
-**Nguyên nhân**: `/usr/local/lib` chưa có trong `/etc/ld.so.conf`
-
-**Giải pháp**:
-```bash
-# Kiểm tra
-cat /etc/ld.so.conf.d/*.conf | grep /usr/local/lib
-# Nếu không có:
-
-echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/local.conf
-sudo ldconfig
-ldconfig -p | grep libfoo  # Giờ thấy rồi!
-```
-
----
-
-## Tóm tắt cho Newbie
-
-### Bạn cần nhớ 3 thứ:
-
-1. **`ldd [program]`** - Xem chương trình cần thư viện gì
-2. **`sudo ldconfig`** - Cập nhật cache sau khi cài thư viện mới
-3. **`/etc/ld.so.conf.d/`** - Thêm đường dẫn thư viện vào đây
-
-### Quy trình xử lý lỗi thiếu thư viện:
-```bash
-# 1. Chương trình báo lỗi
+export LD_LIBRARY_PATH=/opt/lib
 ./myapp
-# Error: libfoo.so.1: cannot open shared object file
-
-# 2. Kiểm tra thiếu gì
-ldd ./myapp | grep "not found"
-
-# 3. Tìm thư viện
-sudo find / -name "libfoo.so*"
-
-# 4. Thêm đường dẫn
-echo "/path/to/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
-
-# 5. Cập nhật cache
-sudo ldconfig
-
-# 6. Chạy lại
-./myapp  # OK!
+# Vẫn báo thiếu lib
 ```
 
-### Khi nào dùng cái gì?
+**Nguyên nhân**:
+1. Thư viện không tồn tại
+2. Quyền file sai
+3. Program là setuid (bỏ qua LD_LIBRARY_PATH vì bảo mật)
 
-| Tình huống | Dùng gì |
-|------------|---------|
-| Cài thư viện mới | `sudo ldconfig` |
-| Chương trình không chạy | `ldd [program]` → tìm thư viện thiếu |
-| Test nhanh không cần root | `export LD_LIBRARY_PATH=/path/to/lib` |
-| Cài đặt vĩnh viễn | Thêm vào `/etc/ld.so.conf.d/` + `ldconfig` |
-| Xem thư viện đang có | `ldconfig -p | grep [tên]` |
+**Debug**:
+```bash
+# Kiểm tra file tồn tại
+ls -l /opt/lib/libfoo.so*
+
+# Kiểm tra quyền
+ls -l /opt/lib/libfoo.so.1
+# -rw-r--r-- ← SAI! Cần execute
+sudo chmod 755 /opt/lib/libfoo.so.1
+
+# Kiểm tra setuid
+ls -l ./myapp
+# -rwsr-xr-x ← Có 's' = setuid, bỏ qua LD_LIBRARY_PATH
+```
+
+---
+
+### Lỗi: gcc không tìm thấy lib
+```bash
+gcc app.c -lmylib -o app
+# /usr/bin/ld: cannot find -lmylib
+```
+
+**Nguyên nhân**: Thư mục lib không có trong search path.
+
+**Giải pháp**:
+```bash
+# Thêm -L
+gcc app.c -L/opt/mylib -lmylib -o app
+
+# Hoặc chỉ định đường dẫn đầy đủ
+gcc app.c /opt/mylib/libmylib.so -o app
+```
+
+---
+
+## 10. Best Practices
+
+### ✅ Nên làm
+
+**1. Production: Dùng ldconfig**
+```bash
+echo "/opt/myapp/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+sudo ldconfig
+```
+
+**2. Tạo lib với version**
+```bash
+gcc -shared -fPIC -Wl,-soname,libfoo.so.1 foo.c -o libfoo.so.1.0.0
+ln -s libfoo.so.1.0.0 libfoo.so.1
+ln -s libfoo.so.1 libfoo.so
+```
+
+**3. Kiểm tra sau khi cài**
+```bash
+ldconfig -p | grep mylib
+ldd /opt/myapp/bin/app
+```
+
+---
+
+### ❌ Không nên làm
+
+**1. KHÔNG dùng LD_LIBRARY_PATH trong production**
+```bash
+# SAI
+export LD_LIBRARY_PATH=/opt/lib
+
+# ĐÚNG
+echo "/opt/lib" | sudo tee /etc/ld.so.conf.d/myapp.conf
+sudo ldconfig
+```
+
+**2. KHÔNG quên -fPIC khi tạo shared lib**
+```bash
+# SAI
+gcc -shared mylib.c -o libmylib.so
+
+# ĐÚNG
+gcc -shared -fPIC mylib.c -o libmylib.so
+```
+
+**3. KHÔNG quên ldconfig**
+```bash
+# SAI
+sudo cp libfoo.so /usr/local/lib/
+
+# ĐÚNG
+sudo cp libfoo.so /usr/local/lib/
+sudo ldconfig  # ← BẮT BUỘC
+```
+
+---
+
+## 11. Tóm tắt nhanh
+
+### Lệnh cần nhớ
+```bash
+# Xem lib program cần
+ldd /path/to/program
+
+# Cập nhật cache
+sudo ldconfig
+
+# Tìm lib trong cache
+ldconfig -p | grep [lib]
+
+# Debug linker
+LD_DEBUG=libs ./program 2>&1 | less
+```
+
+### File quan trọng
+```bash
+/etc/ld.so.conf.d/*.conf  # Config đường dẫn lib
+/etc/ld.so.cache          # Cache (binary)
+/lib64/ld-linux-x86-64.so.2  # Dynamic linker
+```
+
+### GCC cơ bản
+```bash
+# Compile với lib
+gcc app.c -lm -lpthread -o app
+
+# Compile với lib ở thư mục khác
+gcc app.c -L/opt/lib -lfoo -o app
+
+# Tạo shared lib
+gcc -shared -fPIC mylib.c -o libmylib.so
+
+# Nhúng đường dẫn lib
+gcc app.c -L/opt/lib -lfoo -Wl,-rpath,/opt/lib -o app
+```
+
+### Quy trình fix lỗi thiếu lib
+```bash
+1. ldd ./program | grep "not found"
+2. find / -name "libfoo.so*"
+3. export LD_LIBRARY_PATH=/path (test)
+4. echo "/path" | sudo tee /etc/ld.so.conf.d/app.conf
+5. sudo ldconfig
+6. ldd ./program (kiểm tra lại)
+```
+
+### Load-time vs Run-time
+
+| | Load-time | Run-time |
+|---|-----------|----------|
+| **Load khi** | Khởi động program | Gặp dlopen() |
+| **Lỗi phát hiện** | Ngay khi chạy | Khi chạy đến dòng đó |
+| **ldd thấy** | ✅ Có | ❌ Không |
+| **Phổ biến** | 99% program | Plugin systems |
