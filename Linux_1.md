@@ -2309,20 +2309,17 @@ sudo apt update
 # Nâng cấp tất cả package (an toàn)
 sudo apt upgrade
 
-# Nâng cấp + xóa package không cần (nâng cao)
-sudo apt full-upgrade
-
-# Nâng cấp lên phiên bản Ubuntu mới (ví dụ: 20.04 → 22.04)
-sudo apt dist-upgrade
+# Nâng cấp + xóa package không cần (nâng cao) + nâng cấp lên phiên bản Ubuntu mới (ví dụ: 20.04 → 22.04)
+sudo apt full-upgrade # lệnh mới
+hoặc
+sudo apt dist-upgrade # lệnh cũ
 ```
 
-**So sánh**:
-
-| Lệnh | Hành động |
-|------|-----------|
-| `apt upgrade` | Nâng cấp package, **KHÔNG** xóa package cũ |
-| `apt full-upgrade` | Nâng cấp + xóa package cũ nếu cần |
-| `apt dist-upgrade` | Nâng cấp lên phiên bản Ubuntu/Debian mới |
+**Lưu ý:**
+- Hàng ngày: Hãy dùng `sudo apt upgrade`. Nó nhanh và ít rủi ro.
+- Hàng tuần hoặc sau một thời gian dài không update: Hãy dùng `sudo apt full-upgrade` để đảm bảo các gói phụ thuộc phức tạp được giải quyết triệt để.
+- Khi thấy thông báo `The following packages have been kept back`: Đây là lúc bạn bắt buộc phải dùng `full-upgrade` hoặc `dist-upgrade` để xử lý các gói bị kẹt đó.
+- Vì full-upgrade có quyền xóa gói, hãy luôn nhìn qua danh sách các gói sẽ bị gỡ bỏ (REMOVED) trước khi nhấn Y để xác nhận.
 
 ---
 
