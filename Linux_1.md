@@ -3020,7 +3020,7 @@ gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
 | `[repo-id]` | ID repo (duy nhất) | `[base]`, `[epel]` |
 | `name` | Tên hiển thị | Bất kỳ |
 | `baseurl` | URL trực tiếp đến repo | `http://...` hoặc `file:///` |
-| `mirrorlist` | URL trả về danh sách mirror | `http://mirrorlist...` |
+| `mirrorlist` | URL trả về danh sách mirror (là một tệp văn bản chứa danh sách địa chỉ của các máy chủ bản sao nhằm giảm tải các server repo gốc)  | `http://mirrorlist...` |
 | `enabled` | Bật/tắt repo | `1` = bật, `0` = tắt |
 | `gpgcheck` | Kiểm tra chữ ký | `1` = bật, `0` = tắt |
 | `gpgkey` | Đường dẫn GPG key | `file:///...` hoặc `http://...` |
