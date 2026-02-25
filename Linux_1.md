@@ -22,6 +22,7 @@
 
 [Shared Library](#shared-library)
 
+[Debian Package Management](#debian-package-management)
 
 # Hardware Information Commands
 
@@ -2107,3 +2108,799 @@ gcc app.c -L/opt/lib -lfoo -Wl,-rpath,/opt/lib -o app
 | **Lỗi phát hiện** | Ngay khi chạy | Khi chạy đến dòng đó |
 | **ldd thấy** | ✅ Có | ❌ Không |
 | **Phổ biến** | 99% program | Plugin systems |
+
+---
+
+# Debian Package Management
+
+## 1. Khái niệm cơ bản
+
+### Package Manager là gì?
+
+**Định nghĩa**: Công cụ cài đặt, gỡ bỏ, cập nhật phần mềm trên Linux.
+
+**2 loại công cụ trên Debian/Ubuntu**:
+
+| Công cụ | Cấp độ | Chức năng | Tự động xử lý dependency |
+|---------|--------|-----------|--------------------------|
+| **APT** (apt, apt-get, apt-cache) | High-level | Cài từ repository, tự động xử lý dependency | ✅ Có |
+| **dpkg** | Low-level | Cài từ file .deb local | ❌ Không |
+
+**Ví dụ**:
+```
+Cài nginx:
+
+APT: apt install nginx
+→ Tự động tải nginx.deb từ repository
+→ Tự động tải + cài các dependency
+→ Cài nginx
+
+dpkg: dpkg -i nginx.deb
+→ Cài nginx từ file local
+→ Nếu thiếu dependency → LỖI (phải tự cài thủ công)
+```
+
+---
+
+## 2. Repository - Kho phần mềm
+
+### Repository là gì?
+
+**Định nghĩa**: Server chứa hàng ngàn package (.deb) mà bạn có thể tải và cài.
+
+**Ví dụ thực tế**:
+```
+Repository = "App Store" của Linux
+Ubuntu Repository chứa: nginx, mysql, python3, vim, ...
+```
+
+---
+
+### 2.1. File cấu hình Repository
+
+#### `/etc/apt/sources.list` - File chính
+
+**Chứa**: Danh sách các repository chính.
+
+**Ví dụ nội dung**:
+```bash
+cat /etc/apt/sources.list
+# Output:
+deb http://archive.ubuntu.com/ubuntu focal main restricted
+deb http://archive.ubuntu.com/ubuntu focal-updates main restricted
+deb http://security.ubuntu.com/ubuntu focal-security main restricted
+```
+
+**Cú pháp**:
+```
+deb [URL] [distribution] [component1] [component2]
+ ↑     ↑         ↑              ↑
+Type  URL    Phiên bản    Loại package
+```
+
+**Giải thích**:
+
+| Phần | Ý nghĩa | Ví dụ |
+|------|---------|-------|
+| **Type** | `deb` = binary package<br>`deb-src` = source code | `deb` (phổ biến) |
+| **URL** | Địa chỉ server chứa repository | `http://archive.ubuntu.com/ubuntu` |
+| **Distribution** | Phiên bản Ubuntu/Debian | `focal` (Ubuntu 20.04)<br>`jammy` (Ubuntu 22.04)<br>`bookworm` (Debian 12) |
+| **Component** | Loại package | `main` = chính thức, free<br>`restricted` = driver có bản quyền<br>`universe` = community<br>`multiverse` = có bản quyền |
+
+---
+
+#### `/etc/apt/sources.list.d/` - Thư mục chứa repo bổ sung
+
+**Mục đích**: Tách repo của từng ứng dụng ra file riêng, dễ quản lý.
+
+**Ví dụ**:
+```bash
+ls /etc/apt/sources.list.d/
+# Output:
+docker.list              ← Repo của Docker
+google-chrome.list       ← Repo của Chrome
+mysql.list               ← Repo của MySQL
+```
+
+**Nội dung file**:
+```bash
+cat /etc/apt/sources.list.d/docker.list
+# Output:
+deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+```
+
+---
+
+### 2.2. Thêm Repository
+
+#### Cách 1: Thêm vào file sources.list
+```bash
+# Backup trước
+sudo cp /etc/apt/sources.list /etc/apt/sources.list.backup
+
+# Thêm repo
+echo "deb http://repo.example.com/ubuntu focal main" | sudo tee -a /etc/apt/sources.list
+
+# Cập nhật
+sudo apt update
+```
+
+---
+
+#### Cách 2: Tạo file mới trong sources.list.d/ (Khuyên dùng)
+```bash
+# Tạo file repo
+echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list
+
+# Cập nhật
+sudo apt update
+```
+
+---
+
+#### Cách 3: Dùng add-apt-repository (Dễ nhất)
+```bash
+# Thêm PPA (Personal Package Archive)
+sudo add-apt-repository ppa:ondrej/php
+sudo apt update
+
+# Xóa PPA
+sudo add-apt-repository --remove ppa:ondrej/php
+```
+
+---
+
+### 2.3. Thêm GPG Key (Bảo mật)
+
+**Tại sao cần**: Xác minh package tải về đúng từ repo chính thức, không bị giả mạo.
+
+**Quy trình**:
+```bash
+# Bước 1: Tải GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Bước 2: Thêm repo với key
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu focal stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list
+
+# Bước 3: Cập nhật
+sudo apt update
+```
+
+---
+
+## 3. APT - Advanced Package Tool (High-level)
+
+### 3.1. apt vs apt-get vs apt-cache
+
+| Lệnh | Mục đích | Ghi chú |
+|------|----------|---------|
+| **apt** | Lệnh hiện đại, dễ dùng | **Khuyên dùng** cho người mới |
+| **apt-get** | Lệnh cũ, stable | Dùng trong script |
+| **apt-cache** | Tìm kiếm, xem thông tin package | Dùng kết hợp với apt-get |
+| **aptitude** | Giao diện TUI (Text UI) | Ít dùng |
+
+**Khuyến nghị**: Dùng `apt` cho hầu hết tác vụ.
+
+---
+
+### 3.2. Lệnh APT cơ bản
+
+#### Cập nhật danh sách package
+```bash
+sudo apt update
+```
+
+**Chức năng**: 
+- Tải danh sách package mới nhất từ repository
+- **KHÔNG** cài đặt hay cập nhật package
+- Chỉ làm mới cache local
+
+**Khi nào chạy**: 
+- ✅ Sau khi thêm repo mới
+- ✅ Trước khi cài package
+- ✅ Định kỳ (hàng tuần)
+
+---
+
+#### Nâng cấp package đã cài
+```bash
+# Nâng cấp tất cả package (an toàn)
+sudo apt upgrade
+
+# Nâng cấp + xóa package không cần (nâng cao)
+sudo apt full-upgrade
+
+# Nâng cấp lên phiên bản Ubuntu mới (ví dụ: 20.04 → 22.04)
+sudo apt dist-upgrade
+```
+
+**So sánh**:
+
+| Lệnh | Hành động |
+|------|-----------|
+| `apt upgrade` | Nâng cấp package, **KHÔNG** xóa package cũ |
+| `apt full-upgrade` | Nâng cấp + xóa package cũ nếu cần |
+| `apt dist-upgrade` | Nâng cấp lên phiên bản Ubuntu/Debian mới |
+
+---
+
+#### Cài đặt package
+```bash
+# Cài 1 package
+sudo apt install nginx
+
+# Cài nhiều package
+sudo apt install nginx mysql-server php-fpm
+
+# Cài phiên bản cụ thể
+sudo apt install nginx=1.18.0-0ubuntu1
+
+# Cài và tự động yes
+sudo apt install -y nginx
+
+# Chỉ tải package (không cài)
+sudo apt install --download-only nginx
+# Package lưu tại: /var/cache/apt/archives/
+```
+
+---
+
+#### Gỡ bỏ package
+```bash
+# Gỡ package, GIỮ file cấu hình
+sudo apt remove nginx
+
+# Gỡ package + XÓA file cấu hình
+sudo apt purge nginx
+
+# Gỡ + xóa dependency không dùng nữa
+sudo apt autoremove
+
+# Gỡ hoàn toàn (purge + autoremove)
+sudo apt purge nginx && sudo apt autoremove
+```
+
+**So sánh**:
+
+| Lệnh | Xóa binary | Xóa config | Xóa dependency |
+|------|------------|------------|----------------|
+| `apt remove` | ✅ | ❌ | ❌ |
+| `apt purge` | ✅ | ✅ | ❌ |
+| `apt autoremove` | ❌ | ❌ | ✅ |
+
+---
+
+#### Tìm kiếm package
+```bash
+# Tìm kiếm package
+apt search nginx
+# hoặc
+apt-cache search nginx
+
+# Xem thông tin chi tiết package
+apt show nginx
+# hoặc
+apt-cache show nginx
+
+# Xem thông tin kỹ thuật (dependency, conflicts...)
+apt-cache showpkg nginx
+
+# Liệt kê tất cả package đã cài
+apt list --installed
+
+# Liệt kê package có thể nâng cấp
+apt list --upgradable
+
+# Xem dependency của package
+apt-cache depends nginx
+
+# Xem package nào phụ thuộc vào package này (reverse dependency)
+apt-cache rdepends nginx
+```
+
+---
+
+### 3.3. APT Cache
+
+**Vị trí**: `/var/cache/apt/archives/`
+
+**Chứa**: Package .deb đã tải về.
+
+**Quản lý**:
+```bash
+# Xem dung lượng cache
+du -sh /var/cache/apt/archives/
+
+# Xóa cache (giữ lại package đã cài)
+sudo apt clean
+
+# Xóa cache cũ (giữ lại package mới nhất)
+sudo apt autoclean
+```
+
+---
+
+### 3.4. Khắc phục lỗi dependency
+```bash
+# Lỗi: "unmet dependencies"
+sudo apt install -f
+# hoặc
+sudo apt --fix-broken install
+
+# Lỗi: "held packages"
+sudo apt-mark unhold [package]
+```
+
+---
+
+## 4. dpkg - Debian Package (Low-level)
+
+### 4.1. dpkg là gì?
+
+**Định nghĩa**: Công cụ low-level cài đặt file .deb local.
+
+**Khác với APT**:
+- APT: Tải từ repository + tự động xử lý dependency
+- dpkg: Cài từ file local + **KHÔNG** tự động xử lý dependency
+
+**Khi nào dùng**:
+- Cài package .deb tải từ website (không có trong repo)
+- Ví dụ: Google Chrome, Zoom, Slack
+
+---
+
+### 4.2. Lệnh dpkg cơ bản
+
+#### Xem thông tin package
+```bash
+# Xem thông tin file .deb
+dpkg --info package.deb
+
+# Xem nội dung file .deb
+dpkg --contents package.deb
+
+# Xem thông tin package đã cài
+dpkg --status nginx
+
+# Liệt kê tất cả package đã cài
+dpkg --list
+# hoặc (ngắn gọn)
+dpkg -l
+
+# Tìm package theo tên
+dpkg -l | grep nginx
+
+# Liệt kê file của package đã cài
+dpkg --listfiles nginx
+# hoặc
+dpkg -L nginx
+
+# Tìm package nào cài file này
+dpkg --search /usr/sbin/nginx
+# hoặc
+dpkg -S /usr/sbin/nginx
+```
+
+---
+
+#### Cài đặt package
+```bash
+# Cài package từ file .deb
+sudo dpkg -i package.deb
+
+# Cài nhiều package
+sudo dpkg -i package1.deb package2.deb
+
+# Lỗi dependency? → Dùng apt fix
+sudo dpkg -i package.deb
+# Error: dependency problems
+
+sudo apt install -f  # Fix dependency
+```
+
+---
+
+#### Gỡ bỏ package
+```bash
+# Gỡ package, GIỮ config
+sudo dpkg -r nginx
+# hoặc
+sudo dpkg --remove nginx
+
+# Gỡ package + XÓA config
+sudo dpkg -P nginx
+# hoặc
+sudo dpkg --purge nginx
+```
+
+---
+
+#### Force install (Nguy hiểm)
+```bash
+# Force cài dù thiếu dependency
+sudo dpkg -i --force-depends package.deb
+
+# Force cài dù có xung đột
+sudo dpkg -i --force-conflicts package.deb
+
+# Force gỡ package bị lỗi
+sudo dpkg --force-remove-reinstreq -P package
+```
+
+**⚠️ Cảnh báo**: Chỉ dùng khi hiểu rõ hậu quả, có thể làm hỏng hệ thống!
+
+---
+
+### 4.3. dpkg-reconfigure
+
+**Mục đích**: Chạy lại wizard cấu hình của package.
+```bash
+# Cấu hình lại timezone
+sudo dpkg-reconfigure tzdata
+
+# Cấu hình lại keyboard
+sudo dpkg-reconfigure keyboard-configuration
+
+# Cấu hình lại locales
+sudo dpkg-reconfigure locales
+
+# Cấu hình lại MySQL
+sudo dpkg-reconfigure mysql-server
+```
+
+---
+
+## 5. Workflow thực tế
+
+### Workflow 1: Cài package từ repository
+```bash
+# Bước 1: Cập nhật danh sách package
+sudo apt update
+
+# Bước 2: Tìm package
+apt search mysql
+
+# Bước 3: Xem thông tin
+apt show mysql-server
+
+# Bước 4: Cài đặt
+sudo apt install mysql-server
+
+# Bước 5: Kiểm tra
+dpkg -l | grep mysql
+systemctl status mysql
+```
+
+---
+
+### Workflow 2: Cài package từ file .deb
+```bash
+# Ví dụ: Cài Google Chrome
+
+# Bước 1: Tải file .deb
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+
+# Bước 2: Cài bằng dpkg
+sudo dpkg -i google-chrome-stable_current_amd64.deb
+
+# Bước 3: Nếu lỗi dependency
+sudo apt install -f
+
+# Bước 4: Kiểm tra
+dpkg -l | grep google-chrome
+which google-chrome
+```
+
+---
+
+### Workflow 3: Cài package từ PPA
+```bash
+# Ví dụ: Cài PHP 8.2 từ PPA
+
+# Bước 1: Thêm PPA
+sudo add-apt-repository ppa:ondrej/php
+
+# Bước 2: Cập nhật
+sudo apt update
+
+# Bước 3: Cài đặt
+sudo apt install php8.2
+
+# Bước 4: Kiểm tra
+php -v
+```
+
+---
+
+### Workflow 4: Thêm repository của bên thứ 3
+```bash
+# Ví dụ: Cài Docker
+
+# Bước 1: Cài prerequisite
+sudo apt install ca-certificates curl gnupg
+
+# Bước 2: Thêm GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Bước 3: Thêm repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Bước 4: Cập nhật
+sudo apt update
+
+# Bước 5: Cài Docker
+sudo apt install docker-ce docker-ce-cli containerd.io
+
+# Bước 6: Kiểm tra
+docker --version
+```
+
+---
+
+## 6. Troubleshooting
+
+### Lỗi: "Unable to locate package"
+```bash
+sudo apt install package-name
+# E: Unable to locate package package-name
+```
+
+**Nguyên nhân**:
+1. Chưa update apt cache
+2. Package không có trong repo
+3. Gõ sai tên package
+
+**Giải pháp**:
+```bash
+# 1. Update cache
+sudo apt update
+
+# 2. Tìm tên chính xác
+apt search package-name
+
+# 3. Kiểm tra repo có enable không
+cat /etc/apt/sources.list
+```
+
+---
+
+### Lỗi: "unmet dependencies"
+```bash
+sudo apt install package-name
+# The following packages have unmet dependencies:
+#   package-name : Depends: libfoo but it is not installable
+```
+
+**Giải pháp**:
+```bash
+# Fix tự động
+sudo apt install -f
+
+# Hoặc cài dependency thủ công
+sudo apt install libfoo
+sudo apt install package-name
+```
+
+---
+
+### Lỗi: "dpkg was interrupted"
+```bash
+sudo apt install package-name
+# E: dpkg was interrupted, you must manually run 'dpkg --configure -a'
+```
+
+**Giải pháp**:
+```bash
+# Configure lại package bị gián đoạn
+sudo dpkg --configure -a
+
+# Sau đó thử lại
+sudo apt install package-name
+```
+
+---
+
+### Lỗi: "Could not get lock"
+```bash
+sudo apt install package-name
+# E: Could not get lock /var/lib/dpkg/lock-frontend
+```
+
+**Nguyên nhân**: Có process apt khác đang chạy.
+
+**Giải pháp**:
+```bash
+# Tìm process
+ps aux | grep -i apt
+
+# Kill process (cẩn thận!)
+sudo killall apt apt-get
+
+# Hoặc đợi process kia chạy xong
+# Hoặc xóa lock file (nguy hiểm!)
+sudo rm /var/lib/dpkg/lock-frontend
+sudo rm /var/lib/apt/lists/lock
+sudo dpkg --configure -a
+```
+
+---
+
+### Lỗi: "Hash Sum mismatch"
+```bash
+sudo apt update
+# Hash Sum mismatch
+```
+
+**Nguyên nhân**: Cache bị corrupt hoặc mirror lỗi.
+
+**Giải pháp**:
+```bash
+# Xóa cache
+sudo rm -rf /var/lib/apt/lists/*
+sudo apt clean
+sudo apt update
+
+# Nếu vẫn lỗi, đổi mirror
+sudo vim /etc/apt/sources.list
+# Đổi archive.ubuntu.com → mirrors.aliyun.com (hoặc mirror khác)
+```
+
+---
+
+## 7. File và thư mục quan trọng
+
+| Đường dẫn | Chứa gì |
+|-----------|---------|
+| `/etc/apt/sources.list` | Danh sách repository chính |
+| `/etc/apt/sources.list.d/` | Repository bổ sung (từng file) |
+| `/var/lib/apt/lists/` | Cache danh sách package từ repo |
+| `/var/cache/apt/archives/` | File .deb đã tải về |
+| `/var/lib/dpkg/status` | Database package đã cài (dpkg) |
+| `/var/lib/dpkg/info/` | Scripts và thông tin của từng package |
+| `/etc/apt/preferences` | Cấu hình ưu tiên phiên bản package |
+| `/etc/apt/apt.conf.d/` | Cấu hình APT |
+
+---
+
+## 8. Best Practices
+
+### ✅ Nên làm
+
+**1. Luôn update trước khi cài**
+```bash
+sudo apt update && sudo apt install package-name
+```
+
+**2. Backup sources.list trước khi sửa**
+```bash
+sudo cp /etc/apt/sources.list /etc/apt/sources.list.backup
+```
+
+**3. Tạo file riêng trong sources.list.d/**
+```bash
+# Tốt
+echo "deb ..." | sudo tee /etc/apt/sources.list.d/docker.list
+
+# Không tốt
+echo "deb ..." | sudo tee -a /etc/apt/sources.list
+```
+
+**4. Xóa package không dùng định kỳ**
+```bash
+sudo apt autoremove
+sudo apt autoclean
+```
+
+**5. Dùng apt thay vì apt-get (người mới)**
+```bash
+# Tốt (hiện đại, dễ đọc)
+sudo apt install nginx
+
+# OK (cũ nhưng stable, dùng trong script)
+sudo apt-get install nginx
+```
+
+---
+
+### ❌ Không nên làm
+
+**1. KHÔNG dùng force nếu không hiểu**
+```bash
+# NGUY HIỂM
+sudo dpkg -i --force-all package.deb
+```
+
+**2. KHÔNG xóa /var/lib/dpkg/ hoặc /var/lib/apt/**
+```bash
+# CỰC KỲ NGUY HIỂM - Làm hỏng package manager
+sudo rm -rf /var/lib/dpkg/
+```
+
+**3. KHÔNG mix repo từ nhiều distro**
+```bash
+# SAI - Đừng thêm repo Debian vào Ubuntu
+deb http://deb.debian.org/debian bullseye main
+```
+
+**4. KHÔNG quên purge khi gỡ**
+```bash
+# Không tốt - config cũ còn lại
+sudo apt remove nginx
+
+# Tốt - xóa sạch
+sudo apt purge nginx
+```
+
+---
+
+## 9. Tóm tắt nhanh
+
+### Lệnh cần nhớ
+```bash
+# === APT ===
+sudo apt update                    # Cập nhật danh sách package
+sudo apt upgrade                   # Nâng cấp package đã cài
+sudo apt install [pkg]             # Cài package
+sudo apt remove [pkg]              # Gỡ package (giữ config)
+sudo apt purge [pkg]               # Gỡ package (xóa config)
+sudo apt autoremove                # Xóa dependency không dùng
+sudo apt search [keyword]          # Tìm package
+sudo apt show [pkg]                # Xem thông tin package
+
+# === dpkg ===
+sudo dpkg -i package.deb           # Cài từ file .deb
+sudo dpkg -r [pkg]                 # Gỡ package (giữ config)
+sudo dpkg -P [pkg]                 # Gỡ package (xóa config)
+dpkg -l                            # Liệt kê package đã cài
+dpkg -L [pkg]                      # Liệt kê file của package
+dpkg -S /path/to/file              # Tìm package chứa file
+dpkg --info package.deb            # Xem thông tin file .deb
+
+# === Fix lỗi ===
+sudo apt install -f                # Fix dependency
+sudo dpkg --configure -a           # Configure package bị gián đoạn
+```
+
+### Workflow nhanh
+```bash
+# Cài package từ repo
+sudo apt update && sudo apt install [package]
+
+# Cài package từ .deb
+sudo dpkg -i package.deb
+sudo apt install -f
+
+# Gỡ package sạch sẽ
+sudo apt purge [package] && sudo apt autoremove
+
+# Thêm PPA
+sudo add-apt-repository ppa:[user]/[ppa-name]
+sudo apt update
+```
+
+### Repository
+```
+/etc/apt/sources.list       ← File chính
+/etc/apt/sources.list.d/    ← File bổ sung (khuyên dùng)
+
+Cú pháp:
+deb [URL] [distribution] [component]
+```
+
+### APT vs dpkg
+
+| | APT | dpkg |
+|---|-----|------|
+| **Level** | High | Low |
+| **Nguồn** | Repository | File .deb local |
+| **Dependency** | Tự động | Thủ công |
+| **Khi dùng** | 99% trường hợp | Cài .deb từ website |
