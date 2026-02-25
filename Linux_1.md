@@ -24,6 +24,8 @@
 
 [Debian Package Management](#debian-package-management)
 
+[RPM and YUM Package Management](#rpm-and-yum-package-management)
+
 # Hardware Information Commands
 
 | Command | Description | How to Read/Use |
@@ -2912,3 +2914,996 @@ deb [URL] [distribution] [component]
 | **Nguồn** | Repository | File .deb local |
 | **Dependency** | Tự động | Thủ công |
 | **Khi dùng** | 99% trường hợp | Cài .deb từ website |
+
+---
+
+# RPM and YUM Package Management
+
+## 1. Khái niệm cơ bản
+
+### RPM vs YUM
+
+| | RPM | YUM/DNF |
+|---|-----|---------|
+| **Level** | Low-level | High-level |
+| **Nguồn** | File .rpm local | Repository |
+| **Dependency** | Thủ công | Tự động |
+| **Distro** | RHEL, CentOS, Fedora, openSUSE | RHEL, CentOS, Fedora, Rocky Linux |
+| **Khi dùng** | Cài .rpm từ file local | 99% trường hợp |
+
+**Tương đương Debian**:
+```
+YUM/DNF = APT
+RPM = dpkg
+```
+
+**Lưu ý**: 
+- **DNF** là thế hệ mới của YUM (Fedora 22+, RHEL 8+)
+- Lệnh gần như giống nhau, chỉ thay `yum` → `dnf`
+
+---
+
+## 2. Repository - Kho phần mềm
+
+### Repository là gì?
+
+**Định nghĩa**: Server chứa package (.rpm) để tải và cài đặt.
+
+**Ví dụ**: 
+```
+RHEL Official Repo: RHEL packages
+EPEL Repo: Extra packages (community)
+Docker Repo: Docker CE packages
+```
+
+---
+
+### 2.1. File cấu hình Repository
+
+#### `/etc/yum.conf` - File cấu hình chính
+
+**Chứa**: Cấu hình chung của YUM + có thể định nghĩa repo.
+```bash
+cat /etc/yum.conf
+# Output:
+[main]
+cachedir=/var/cache/yum/$basearch/$releasever
+keepcache=0
+gpgcheck=1
+logfile=/var/log/yum.log
+```
+
+**Tham số quan trọng**:
+
+| Tham số | Ý nghĩa | Giá trị |
+|---------|---------|---------|
+| `cachedir` | Thư mục cache package | `/var/cache/yum/` |
+| `keepcache` | Giữ package sau khi cài | `0` = xóa, `1` = giữ |
+| `gpgcheck` | Kiểm tra chữ ký GPG | `1` = bật, `0` = tắt |
+| `logfile` | File log giao dịch | `/var/log/yum.log` |
+
+---
+
+#### `/etc/yum.repos.d/` - Thư mục chứa repo files
+
+**Chứa**: File `.repo` định nghĩa từng repository.
+
+**Ví dụ**:
+```bash
+ls /etc/yum.repos.d/
+# Output:
+CentOS-Base.repo          ← Repo chính thức
+epel.repo                 ← EPEL repo
+docker-ce.repo            ← Docker repo
+mysql-community.repo      ← MySQL repo
+```
+
+---
+
+#### Cấu trúc file .repo
+
+**Ví dụ file**: `/etc/yum.repos.d/CentOS-Base.repo`
+```ini
+[base]                              ← Tên repo (ID)
+name=CentOS-$releasever - Base     ← Mô tả
+baseurl=http://mirror.centos.org/centos/$releasever/os/$basearch/
+#mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=os
+enabled=1                           ← Bật/tắt repo
+gpgcheck=1                          ← Kiểm tra GPG key
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+```
+
+**Giải thích tham số**:
+
+| Tham số | Ý nghĩa | Giá trị |
+|---------|---------|---------|
+| `[repo-id]` | ID repo (duy nhất) | `[base]`, `[epel]` |
+| `name` | Tên hiển thị | Bất kỳ |
+| `baseurl` | URL trực tiếp đến repo | `http://...` hoặc `file:///` |
+| `mirrorlist` | URL trả về danh sách mirror | `http://mirrorlist...` |
+| `enabled` | Bật/tắt repo | `1` = bật, `0` = tắt |
+| `gpgcheck` | Kiểm tra chữ ký | `1` = bật, `0` = tắt |
+| `gpgkey` | Đường dẫn GPG key | `file:///...` hoặc `http://...` |
+
+**Biến hệ thống**:
+- `$releasever` = Phiên bản OS (7, 8, 9)
+- `$basearch` = Kiến trúc (x86_64, aarch64)
+
+---
+
+### 2.2. Thêm Repository
+
+#### Cách 1: Tạo file .repo thủ công
+```bash
+# Tạo file repo
+sudo vim /etc/yum.repos.d/epel.repo
+
+# Nội dung:
+[epel]
+name=Extra Packages for Enterprise Linux 7 - $basearch
+baseurl=https://download.fedoraproject.org/pub/epel/7/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
+
+# Cập nhật cache
+sudo yum clean all
+sudo yum makecache
+```
+
+---
+
+#### Cách 2: Dùng yum-config-manager (Dễ nhất)
+```bash
+# Cài yum-utils (nếu chưa có)
+sudo yum install yum-utils
+
+# Thêm repo
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+# Bật repo bị tắt
+sudo yum-config-manager --enable epel
+
+# Tắt repo
+sudo yum-config-manager --disable epel
+```
+
+---
+
+#### Cách 3: Cài EPEL (Extra Packages for Enterprise Linux)
+```bash
+# RHEL/CentOS 7
+sudo yum install epel-release
+
+# RHEL/CentOS 8+
+sudo dnf install epel-release
+
+# Kiểm tra
+yum repolist
+```
+
+---
+
+### 2.3. Quản lý Repository
+```bash
+# Liệt kê tất cả repo (enabled + disabled)
+yum repolist all
+
+# Chỉ xem repo enabled
+yum repolist
+
+# Xem thông tin repo cụ thể
+yum repoinfo epel
+
+# Bật repo tạm thời cho 1 lệnh
+sudo yum install --enablerepo=epel nginx
+
+# Tắt repo tạm thời cho 1 lệnh
+sudo yum install --disablerepo=base nginx
+```
+
+---
+
+## 3. YUM - Yellowdog Updater Modified
+
+### 3.1. Lệnh YUM cơ bản
+
+#### Cập nhật hệ thống
+```bash
+# Cập nhật cache repo (tương tự apt update)
+sudo yum check-update
+# hoặc
+sudo yum makecache
+
+# Nâng cấp tất cả package
+sudo yum update
+# hoặc
+sudo yum upgrade
+
+# Nâng cấp + loại bỏ package lỗi thời (cẩn thận)
+sudo yum distro-sync
+```
+
+**Lưu ý**: `yum update` vs `yum upgrade`
+- **CentOS 7 trở về trước**: `update` = `upgrade`
+- **CentOS 8+**: `upgrade` = `update` + xóa package cũ
+
+---
+
+#### Tìm kiếm package
+```bash
+# Tìm kiếm package
+yum search nginx
+
+# Tìm kiếm chính xác
+yum search all nginx
+
+# Xem thông tin package
+yum info nginx
+
+# Xem package nào cung cấp file
+yum provides /usr/sbin/nginx
+# hoặc
+yum whatprovides */nginx
+
+# Liệt kê tất cả package có sẵn
+yum list available
+
+# Liệt kê package đã cài
+yum list installed
+
+# Liệt kê package có thể cập nhật
+yum list updates
+```
+
+---
+
+#### Cài đặt package
+```bash
+# Cài 1 package
+sudo yum install nginx
+
+# Cài nhiều package
+sudo yum install nginx mysql-server php
+
+# Cài phiên bản cụ thể
+sudo yum install nginx-1.20.1
+
+# Cài và tự động yes
+sudo yum install -y nginx
+
+# Chỉ tải package (không cài)
+sudo yum install --downloadonly nginx
+# Package lưu tại: /var/cache/yum/
+```
+
+---
+
+#### Gỡ bỏ package
+```bash
+# Gỡ package (KHÔNG gỡ dependency)
+sudo yum remove nginx
+
+# Gỡ package + dependency không dùng
+sudo yum autoremove nginx
+
+# Gỡ tất cả dependency không dùng (toàn hệ thống)
+sudo yum autoremove
+```
+
+**Lưu ý**: YUM **KHÔNG** có lệnh `purge` như APT (không xóa config file).
+
+---
+
+#### Làm việc với Group Package
+```bash
+# Liệt kê tất cả group
+yum group list
+
+# Xem thông tin group
+yum group info "Development Tools"
+
+# Cài group
+sudo yum group install "Development Tools"
+
+# Gỡ group
+sudo yum group remove "Development Tools"
+```
+
+**Ví dụ group phổ biến**:
+- `"Development Tools"` = gcc, make, git...
+- `"GNOME Desktop"` = Giao diện GNOME
+- `"Web Server"` = httpd, mod_ssl...
+
+---
+
+### 3.2. YUM Advanced
+
+#### Xem lịch sử giao dịch
+```bash
+# Xem lịch sử
+yum history
+
+# Xem chi tiết giao dịch
+yum history info 5
+
+# Undo giao dịch (cẩn thận!)
+sudo yum history undo 5
+
+# Redo giao dịch
+sudo yum history redo 5
+
+# Rollback đến giao dịch cũ
+sudo yum history rollback 3
+```
+
+---
+
+#### Làm sạch cache
+```bash
+# Xóa tất cả cache
+sudo yum clean all
+
+# Chỉ xóa package đã tải
+sudo yum clean packages
+
+# Chỉ xóa metadata
+sudo yum clean metadata
+
+# Xóa + rebuild cache
+sudo yum clean all && sudo yum makecache
+```
+
+---
+
+#### Xem dependency
+```bash
+# Xem dependency của package
+yum deplist nginx
+
+# Xem package nào phụ thuộc vào package này (reverse dependency)
+yum deplist nginx | grep provider
+```
+
+---
+
+### 3.3. yumdownloader - Tải package
+
+**Cài đặt**:
+```bash
+sudo yum install yum-utils
+```
+
+**Sử dụng**:
+```bash
+# Tải package
+yumdownloader nginx
+
+# Tải + dependency
+yumdownloader --resolve nginx
+
+# Tải vào thư mục cụ thể
+yumdownloader --destdir=/tmp nginx
+
+# Chỉ xem URL (không tải)
+yumdownloader --urls nginx
+
+# Tải source RPM
+yumdownloader --source nginx
+```
+
+---
+
+## 4. RPM - Red Hat Package Manager
+
+### 4.1. RPM Database
+
+**Vị trí**: `/var/lib/rpm/`
+
+**Chứa**: Database package đã cài, file list, dependency...
+
+**Rebuild database** (khi bị lỗi):
+```bash
+sudo rpm --rebuilddb
+```
+
+---
+
+### 4.2. Tên file RPM
+
+**Cấu trúc**:
+```
+nginx-1.20.1-9.el7.x86_64.rpm
+  ↑      ↑    ↑  ↑     ↑    ↑
+ Tên  Version Release OS  Arch Extension
+
+nginx = Tên package
+1.20.1 = Phiên bản upstream
+9 = Release số (RedHat rebuild)
+el7 = Enterprise Linux 7 (CentOS 7)
+x86_64 = Kiến trúc 64-bit
+```
+
+**Kiến trúc phổ biến**:
+- `x86_64` = 64-bit Intel/AMD
+- `i686`, `i386` = 32-bit Intel
+- `noarch` = Độc lập kiến trúc (script, config)
+- `src` = Source RPM
+
+---
+
+### 4.3. Lệnh RPM - Query (Truy vấn)
+
+#### Xem package đã cài
+```bash
+# Liệt kê tất cả package
+rpm -qa
+
+# Tìm package theo tên
+rpm -qa | grep nginx
+
+# Xem thông tin package đã cài
+rpm -qi nginx
+
+# Xem thông tin package từ file .rpm
+rpm -qip nginx-1.20.1-9.el7.x86_64.rpm
+
+# Liệt kê file của package đã cài
+rpm -ql nginx
+
+# Liệt kê file của package từ file .rpm
+rpm -qlp nginx-1.20.1-9.el7.x86_64.rpm
+
+# Xem file config của package
+rpm -qc nginx
+
+# Xem changelog của package
+rpm -q --changelog nginx
+
+# Tìm package chứa file cụ thể
+rpm -qf /usr/sbin/nginx
+
+# Xem dependency của package đã cài
+rpm -qR nginx
+
+# Xem dependency của file .rpm
+rpm -qRp nginx-1.20.1-9.el7.x86_64.rpm
+```
+
+---
+
+### 4.4. Lệnh RPM - Install/Upgrade/Remove
+
+#### Cài đặt package
+```bash
+# Cài package từ file .rpm
+sudo rpm -ivh nginx-1.20.1-9.el7.x86_64.rpm
+#         ↑ ↑ ↑
+#         i v h
+# i = install
+# v = verbose (hiển thị chi tiết)
+# h = hash (thanh tiến trình với ký tự #)
+
+# Cài và bỏ qua dependency (NGUY HIỂM)
+sudo rpm -ivh --nodeps nginx.rpm
+
+# Cài và thay thế file trùng
+sudo rpm -ivh --replacefiles nginx.rpm
+
+# Cài và force (NGUY HIỂM)
+sudo rpm -ivh --force nginx.rpm
+```
+
+---
+
+#### Nâng cấp package
+```bash
+# Nâng cấp (cài mới nếu chưa có)
+sudo rpm -Uvh nginx-1.21.0-1.el7.x86_64.rpm
+#           ↑
+#         U = upgrade
+
+# Freshen (chỉ nâng cấp nếu đã cài)
+sudo rpm -Fvh nginx-1.21.0-1.el7.x86_64.rpm
+#           ↑
+#         F = freshen
+```
+
+**So sánh**:
+
+| Lệnh | Đã cài | Chưa cài |
+|------|--------|----------|
+| `rpm -i` | Lỗi (đã tồn tại) | Cài mới |
+| `rpm -U` | Nâng cấp | Cài mới |
+| `rpm -F` | Nâng cấp | Bỏ qua |
+
+---
+
+#### Gỡ bỏ package
+```bash
+# Gỡ package
+sudo rpm -e nginx
+#          ↑
+#       e = erase
+
+# Gỡ và bỏ qua dependency (NGUY HIỂM)
+sudo rpm -e --nodeps nginx
+
+# Gỡ tất cả phiên bản cùng tên (NGUY HIỂM)
+sudo rpm -e --allmatches nginx
+```
+
+**Lưu ý**: Dùng tên ngắn (`nginx`) hoặc tên đầy đủ (`nginx-1.20.1-9.el7.x86_64`).
+
+---
+
+### 4.5. Verify Package
+```bash
+# Verify package đã cài
+rpm -V nginx
+
+# Verify tất cả package
+rpm -Va
+
+# Verify chỉ config file
+rpm -Vac
+```
+
+**Đọc kết quả**:
+
+Không có output = Package nguyên vẹn
+
+Có output = Package bị thay đổi:
+```
+S.5....T. c /etc/nginx/nginx.conf
+↑ ↑    ↑  ↑
+│ │    │  └─ c = config file
+│ │    └─ T = Time modified
+│ └─ 5 = MD5 sum changed
+└─ S = Size changed
+```
+
+**9 ký tự đại diện**:
+
+| Ký tự | Ý nghĩa |
+|-------|---------|
+| `S` | Size changed |
+| `M` | Mode changed (quyền) |
+| `5` | MD5 sum changed |
+| `D` | Device major/minor mismatch |
+| `L` | Symlink path changed |
+| `U` | User ownership changed |
+| `G` | Group ownership changed |
+| `T` | Modification time changed |
+| `P` | Capabilities changed |
+
+**Ký tự loại file**:
+
+| Ký tự | Loại |
+|-------|------|
+| `c` | Config file |
+| `d` | Documentation |
+| `g` | Ghost file (không tồn tại khi cài) |
+| `l` | License file |
+| `r` | Readme file |
+
+---
+
+### 4.6. GPG Signature Verification
+```bash
+# Verify chữ ký package
+rpm -K nginx-1.20.1-9.el7.x86_64.rpm
+# hoặc
+rpm --checksig nginx-1.20.1-9.el7.x86_64.rpm
+
+# Output nếu OK:
+# nginx-1.20.1-9.el7.x86_64.rpm: rsa sha1 (md5) pgp md5 OK
+
+# Output nếu thiếu key:
+# nginx-1.20.1-9.el7.x86_64.rpm: RSA sha1 ((MD5) PGP) md5 NOT OK (MISSING KEYS: GPG#...)
+```
+
+**Import GPG key**:
+```bash
+# Import từ file
+sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+
+# Import từ URL
+sudo rpm --import https://nginx.org/keys/nginx_signing.key
+
+# Xem key đã import
+rpm -q gpg-pubkey --qf '%{NAME}-%{VERSION}-%{RELEASE}\t%{SUMMARY}\n'
+```
+
+---
+
+### 4.7. rpm2cpio - Extract RPM
+
+**Mục đích**: Extract nội dung .rpm mà không cài đặt.
+```bash
+# Extract vào thư mục hiện tại
+rpm2cpio nginx.rpm | cpio -idmv
+
+# Extract vào thư mục cụ thể
+mkdir /tmp/nginx-extract
+cd /tmp/nginx-extract
+rpm2cpio /path/to/nginx.rpm | cpio -idmv
+
+# Chỉ list file (không extract)
+rpm2cpio nginx.rpm | cpio -t
+```
+
+**Giải thích cpio flags**:
+- `-i` = extract
+- `-d` = tạo thư mục nếu cần
+- `-m` = giữ nguyên modification time
+- `-v` = verbose
+- `-t` = list (không extract)
+
+---
+
+## 5. DNF - Dandified YUM (Thế hệ mới)
+
+**DNF** = YUM thế hệ mới, nhanh hơn, ít bug hơn.
+
+**Dùng cho**: Fedora 22+, RHEL 8+, CentOS 8+, Rocky Linux 8+
+
+**Lệnh tương tự YUM**:
+```bash
+# Thay yum → dnf
+dnf install nginx
+dnf remove nginx
+dnf update
+dnf search nginx
+dnf info nginx
+
+# Tất cả lệnh YUM đều chạy được với DNF
+```
+
+**Lệnh mới của DNF**:
+```bash
+# Xem module
+dnf module list
+
+# Cài module stream cụ thể
+dnf module install php:7.4
+
+# Reset module
+dnf module reset php
+```
+
+---
+
+## 6. Workflow thực tế
+
+### Workflow 1: Cài package từ repo
+```bash
+# Bước 1: Cập nhật cache
+sudo yum check-update
+
+# Bước 2: Tìm package
+yum search nginx
+
+# Bước 3: Xem thông tin
+yum info nginx
+
+# Bước 4: Cài đặt
+sudo yum install -y nginx
+
+# Bước 5: Kiểm tra
+rpm -qa | grep nginx
+systemctl status nginx
+```
+
+---
+
+### Workflow 2: Cài package từ file .rpm
+```bash
+# Ví dụ: Cài Zoom
+
+# Bước 1: Tải file .rpm
+wget https://zoom.us/client/latest/zoom_x86_64.rpm
+
+# Bước 2: Cài bằng RPM
+sudo rpm -ivh zoom_x86_64.rpm
+
+# Bước 3: Nếu lỗi dependency
+sudo yum install -y /path/to/zoom_x86_64.rpm
+# YUM sẽ tự động cài dependency
+
+# Bước 4: Kiểm tra
+rpm -qa | grep zoom
+which zoom
+```
+
+---
+
+### Workflow 3: Cài repo bên thứ 3 (Docker)
+```bash
+# Bước 1: Cài yum-utils
+sudo yum install -y yum-utils
+
+# Bước 2: Thêm repo
+sudo yum-config-manager --add-repo \
+  https://download.docker.com/linux/centos/docker-ce.repo
+
+# Bước 3: Kiểm tra repo
+yum repolist | grep docker
+
+# Bước 4: Cài Docker
+sudo yum install -y docker-ce docker-ce-cli containerd.io
+
+# Bước 5: Kiểm tra
+docker --version
+systemctl status docker
+```
+
+---
+
+### Workflow 4: Cài EPEL repo
+```bash
+# Bước 1: Cài epel-release
+sudo yum install -y epel-release
+
+# Bước 2: Kiểm tra
+yum repolist | grep epel
+
+# Bước 3: Cài package từ EPEL
+sudo yum install -y htop
+```
+
+---
+
+## 7. Troubleshooting
+
+### Lỗi: "No package ... available"
+```bash
+sudo yum install package-name
+# No package package-name available
+```
+
+**Nguyên nhân**:
+1. Package không có trong repo
+2. Repo bị tắt
+3. Cache cũ
+
+**Giải pháp**:
+```bash
+# 1. Cập nhật cache
+sudo yum clean all
+sudo yum makecache
+
+# 2. Kiểm tra repo
+yum repolist
+
+# 3. Enable repo cần thiết
+sudo yum-config-manager --enable epel
+
+# 4. Tìm tên chính xác
+yum search package-name
+```
+
+---
+
+### Lỗi: "Transaction check error"
+```bash
+sudo yum install package-name
+# Transaction check error:
+#   file /usr/bin/foo conflicts between attempted installs of ...
+```
+
+**Nguyên nhân**: File conflict giữa 2 package.
+
+**Giải pháp**:
+```bash
+# Xem package nào chứa file đó
+rpm -qf /usr/bin/foo
+
+# Gỡ package cũ
+sudo yum remove old-package
+
+# Cài package mới
+sudo yum install new-package
+```
+
+---
+
+### Lỗi: "GPG key retrieval failed"
+```bash
+sudo yum install package-name
+# Public key for package.rpm is not installed
+```
+
+**Giải pháp**:
+```bash
+# Import GPG key từ repo file
+sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-*
+
+# Hoặc tắt gpgcheck tạm thời (KHÔNG AN TOÀN)
+sudo yum install --nogpgcheck package-name
+```
+
+---
+
+### Lỗi: "rpmdb open failed"
+```bash
+sudo yum install package-name
+# error: rpmdb: BDB0113 Thread/process died in Berkeley DB library
+```
+
+**Nguyên nhân**: RPM database bị corrupt.
+
+**Giải pháp**:
+```bash
+# Backup database
+sudo cp -a /var/lib/rpm /var/lib/rpm.backup
+
+# Rebuild database
+sudo rpm --rebuilddb
+
+# Hoặc khôi phục từ backup
+sudo rm -rf /var/lib/rpm/__db.*
+sudo rpm --rebuilddb
+```
+
+---
+
+### Lỗi: "Loaded plugins ... fastestmirror ... no URLs"
+```bash
+sudo yum update
+# One of the configured repositories failed (Unknown)
+```
+
+**Nguyên nhân**: Mirror list không tải được.
+
+**Giải pháp**:
+```bash
+# Tắt fastestmirror plugin
+sudo vim /etc/yum/pluginconf.d/fastestmirror.conf
+# enabled=0
+
+# Hoặc dùng baseurl thay vì mirrorlist
+sudo vim /etc/yum.repos.d/CentOS-Base.repo
+# Uncomment baseurl, comment mirrorlist
+```
+
+---
+
+## 8. File và thư mục quan trọng
+
+| Đường dẫn | Chứa gì |
+|-----------|---------|
+| `/etc/yum.conf` | Cấu hình chính YUM |
+| `/etc/yum.repos.d/` | File định nghĩa repository |
+| `/var/cache/yum/` | Cache package đã tải |
+| `/var/log/yum.log` | Log giao dịch YUM |
+| `/var/lib/rpm/` | RPM database |
+| `/etc/pki/rpm-gpg/` | GPG keys |
+
+---
+
+## 9. Best Practices
+
+### ✅ Nên làm
+
+**1. Luôn update trước khi cài**
+```bash
+sudo yum check-update && sudo yum install package-name
+```
+
+**2. Backup trước khi thêm repo bên thứ 3**
+```bash
+sudo cp /etc/yum.repos.d/CentOS-Base.repo \
+        /etc/yum.repos.d/CentOS-Base.repo.backup
+```
+
+**3. Enable repo bên thứ 3 chỉ khi cần**
+```bash
+# File repo: enabled=0 (mặc định tắt)
+# Dùng: yum install --enablerepo=epel package
+```
+
+**4. Verify GPG signature trước khi cài**
+```bash
+rpm -K package.rpm
+```
+
+**5. Lưu lại lịch sử giao dịch**
+```bash
+yum history > /root/yum-history-$(date +%F).txt
+```
+
+---
+
+### ❌ Không nên làm
+
+**1. KHÔNG dùng --force nếu không hiểu**
+```bash
+# NGUY HIỂM
+sudo rpm -ivh --force --nodeps package.rpm
+```
+
+**2. KHÔNG xóa RPM database**
+```bash
+# CỰC KỲ NGUY HIỂM
+sudo rm -rf /var/lib/rpm/
+```
+
+**3. KHÔNG mix repo từ nhiều distro**
+```bash
+# SAI - Đừng thêm Fedora repo vào CentOS
+```
+
+**4. KHÔNG tắt gpgcheck trong production**
+```bash
+# Không an toàn
+gpgcheck=0
+```
+
+---
+
+## 10. Tóm tắt nhanh
+
+### Lệnh cần nhớ
+```bash
+# === YUM ===
+sudo yum check-update              # Cập nhật cache
+sudo yum update                    # Nâng cấp hệ thống
+sudo yum install [pkg]             # Cài package
+sudo yum remove [pkg]              # Gỡ package
+sudo yum autoremove                # Xóa dependency không dùng
+sudo yum search [keyword]          # Tìm package
+sudo yum info [pkg]                # Xem thông tin package
+yum repolist                       # List repository
+
+# === RPM ===
+sudo rpm -ivh package.rpm          # Cài từ file .rpm
+sudo rpm -Uvh package.rpm          # Nâng cấp package
+sudo rpm -e [pkg]                  # Gỡ package
+rpm -qa                            # List package đã cài
+rpm -qi [pkg]                      # Xem thông tin package
+rpm -ql [pkg]                      # List file của package
+rpm -qf /path/to/file              # Tìm package chứa file
+rpm -V [pkg]                       # Verify package
+
+# === Fix lỗi ===
+sudo yum install -y [/path/to/package.rpm]  # Cài .rpm + dependency
+sudo rpm --rebuilddb                        # Rebuild RPM database
+sudo yum clean all && sudo yum makecache    # Làm sạch cache
+```
+
+### Workflow nhanh
+```bash
+# Cài package từ repo
+sudo yum install -y [package]
+
+# Cài package từ .rpm
+sudo yum install -y /path/to/package.rpm
+# hoặc
+sudo rpm -ivh package.rpm
+
+# Thêm repo bên thứ 3
+sudo yum-config-manager --add-repo [URL]
+sudo yum install -y [package]
+
+# Cài EPEL
+sudo yum install -y epel-release
+```
+
+### YUM vs RPM
+
+| | YUM | RPM |
+|---|-----|-----|
+| **Level** | High | Low |
+| **Nguồn** | Repository | File .rpm |
+| **Dependency** | Tự động | Thủ công |
+| **Khi dùng** | 99% | Cài .rpm local |
+
+### YUM vs DNF
+
+| | YUM | DNF |
+|---|-----|-----|
+| **Distro** | RHEL 7, CentOS 7 | RHEL 8+, Fedora 22+ |
+| **Lệnh** | `yum` | `dnf` (tương tự yum) |
+| **Tốc độ** | Chậm hơn | Nhanh hơn |
+| **Khuyến nghị** | Legacy | **Khuyên dùng** trên hệ mới |
