@@ -2395,6 +2395,17 @@ apt-cache depends nginx
 
 # Xem package nào phụ thuộc vào package này (reverse dependency)
 apt-cache rdepends nginx
+
+# Xem tất cả version của một package
+apt-cache madison haproxy
+# Kết quả:
+# Installed: (Phiên bản bạn đang cài trên máy).
+# Candidate: (Phiên bản cao nhất mà lệnh apt upgrade sẽ chọn để cài).
+# Version table: Danh sách tất cả các phiên bản có sẵn trong các repo bạn đã khai báo (như jammy-updates, jammy-security).
+# Hoặc
+apt-cache madison haproxy
+# haproxy | 2.4.30-0ubuntu0.22.04.1 | http://archive.ubuntu.com/... jammy-updates/main amd64 Packages
+
 ```
 
 ---
